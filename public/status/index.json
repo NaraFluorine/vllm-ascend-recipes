@@ -1,8 +1,17 @@
 {
-  "updated_at": "2026-07-26T14:10:00Z",
+  "updated_at": "2026-07-27T08:55:18Z",
   "models": [
-    { "slug": "Qwen3-30B-A3B" },
-    { "slug": "GLM-5.2" },
-    { "slug": "Qwen3-235B-A22B" }
+    {
+      "slug": "GLM-5.2"
+    },
+    {
+      "slug": "Qwen3-235B-A22B"
+    },
+    {
+      "slug": "Qwen3-30B-A3B"
+    },
+    {
+      "slug": null
+    }
   ]
 }
