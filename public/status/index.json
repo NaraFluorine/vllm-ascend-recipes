@@ -1,8 +1,17 @@
 {
-  "updated_at": "2026-07-27T13:27:07Z",
+  "updated_at": "2026-07-27T20:20:47Z",
   "models": [
     {
+      "slug": "DeepSeek-V4-Flash"
+    },
+    {
+      "slug": "GLM-4.x"
+    },
+    {
       "slug": "GLM-5.2"
+    },
+    {
+      "slug": "GLM-5"
     },
     {
       "slug": "Qwen3-235B-A22B"

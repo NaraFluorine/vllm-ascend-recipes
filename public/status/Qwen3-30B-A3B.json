@@ -21,19 +21,19 @@
   "last_nightly_run": {
     "kind": "nightly",
     "status": "pass",
-    "conclusion": "success",
-    "head_sha": "cf7317a1906fca13f16d33e888e3c1f2eadece45",
-    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/cf7317a1906fca13f16d33e888e3c1f2eadece45",
-    "workflow_run_id": 30250555191,
-    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30250555191",
+    "conclusion": "failure",
+    "head_sha": "6175b9914a09091268a1258965dcef05f7adb44c",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/6175b9914a09091268a1258965dcef05f7adb44c",
+    "workflow_run_id": 30298102409,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30298102409",
     "recipe_path": "models/en/Qwen/Qwen3-30B-A3B.yaml",
-    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/cf7317a1906fca13f16d33e888e3c1f2eadece45/models/en/Qwen/Qwen3-30B-A3B.yaml",
-    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/cf7317a1906fca13f16d33e888e3c1f2eadece45/Qwen3-30B-A3B.params.json",
-    "started_at": "2026-07-27T08:32:01Z",
-    "finished_at": "2026-07-27T08:55:18Z",
-    "pr_number": 18,
-    "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/18",
-    "pr_title": "Refactor CI to publish status directly to main and remove gh-pages",
-    "pr_author": "chaosv598"
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/6175b9914a09091268a1258965dcef05f7adb44c/models/en/Qwen/Qwen3-30B-A3B.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/6175b9914a09091268a1258965dcef05f7adb44c/Qwen3-30B-A3B.params.json",
+    "started_at": "2026-07-27T13:29:00Z",
+    "finished_at": "2026-07-27T20:20:47Z",
+    "pr_number": null,
+    "pr_url": null,
+    "pr_title": null,
+    "pr_author": null
   }
 }

@@ -1,0 +1,22 @@
+{
+  "model": "DeepSeek-V4-Flash",
+  "last_pr_run": null,
+  "last_nightly_run": {
+    "kind": "nightly",
+    "status": "skip",
+    "conclusion": "failure",
+    "head_sha": "6175b9914a09091268a1258965dcef05f7adb44c",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/6175b9914a09091268a1258965dcef05f7adb44c",
+    "workflow_run_id": 30298102409,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30298102409",
+    "recipe_path": "models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/6175b9914a09091268a1258965dcef05f7adb44c/models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/6175b9914a09091268a1258965dcef05f7adb44c/DeepSeek-V4-Flash.params.json",
+    "started_at": "2026-07-27T13:29:00Z",
+    "finished_at": "2026-07-27T20:20:46Z",
+    "pr_number": null,
+    "pr_url": null,
+    "pr_title": null,
+    "pr_author": null
+  }
+}
