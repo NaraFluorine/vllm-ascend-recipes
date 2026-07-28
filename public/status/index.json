@@ -1,5 +1,4 @@
 {
-  "updated_at": "2026-07-28T06:40:29Z",
   "models": [
     {
       "slug": "DeepSeek-V4-Flash"
@@ -21,9 +20,6 @@
     },
     {
       "slug": "Qwen3.5-27B-Qwen3.6-27B"
-    },
-    {
-      "slug": null
     }
   ]
 }
