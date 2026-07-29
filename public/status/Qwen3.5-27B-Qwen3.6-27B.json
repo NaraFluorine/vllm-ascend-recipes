@@ -21,19 +21,19 @@
   "last_nightly_run": {
     "kind": "nightly",
     "status": "pass",
-    "conclusion": "failure",
-    "head_sha": "489bebf125f1c777b6094bff88dadd4d0dc3d1f3",
-    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/489bebf125f1c777b6094bff88dadd4d0dc3d1f3",
-    "workflow_run_id": 30391476976,
-    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30391476976",
+    "conclusion": "success",
+    "head_sha": "cf370b36216f0cd80b02aa14ca5cd6ca30a233f4",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/cf370b36216f0cd80b02aa14ca5cd6ca30a233f4",
+    "workflow_run_id": 30433206522,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30433206522",
     "recipe_path": "models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
-    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/489bebf125f1c777b6094bff88dadd4d0dc3d1f3/models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
-    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/489bebf125f1c777b6094bff88dadd4d0dc3d1f3/Qwen3.5-27B-Qwen3.6-27B.params.json",
-    "started_at": "2026-07-28T14:06:04Z",
-    "finished_at": "2026-07-28T20:30:26Z",
-    "pr_number": null,
-    "pr_url": null,
-    "pr_title": null,
-    "pr_author": null
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/cf370b36216f0cd80b02aa14ca5cd6ca30a233f4/models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/cf370b36216f0cd80b02aa14ca5cd6ca30a233f4/Qwen3.5-27B-Qwen3.6-27B.params.json",
+    "started_at": "2026-07-29T06:23:51Z",
+    "finished_at": "2026-07-29T10:36:40Z",
+    "pr_number": 23,
+    "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/23",
+    "pr_title": "fix(verify-recipe): skip on cache miss; fail wins over skip",
+    "pr_author": "chaosv598"
   }
 }
