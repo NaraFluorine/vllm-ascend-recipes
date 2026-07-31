@@ -11,6 +11,10 @@ meta:
 
 model:
   model_id: "ZhipuAI/GLM-4.7"
+  performance_model_names:
+    - "GLM-4.5"
+    - "GLM-4.6"
+    - "GLM-4.7"
   min_vllm_version: "0.10.0rc1"
   architecture: moe
   parameter_count: "31B"

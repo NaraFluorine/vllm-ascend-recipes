@@ -11,6 +11,8 @@ meta:
 
 model:
   model_id: "deepseek-ai/DeepSeek-V4-Flash"
+  performance_model_names:
+    - "DeepSeek-V4-Flash"
   min_vllm_version: "0.8.4rc2"
   architecture: moe
   parameter_count: "284B"

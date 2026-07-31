@@ -7,6 +7,7 @@ import CascadeSelector from '../../components/CascadeSelector.tsx';
 import PrepareTabs from '../../components/PrepareTabs.tsx';
 import ReferenceTabs from '../../components/ReferenceTabs.tsx';
 import { getAllModels, formatContextLength, formatParameters } from '../../lib/models';
+import { getPerformanceTables } from '../../lib/performance-data';
 import type { Model } from '../../lib/types';
 
 export const getStaticPaths = (async () => {
@@ -31,6 +32,7 @@ interface Props {
 
 const { modelEn, modelZh } = Astro.props;
 const model = modelEn;
+const performanceTables = getPerformanceTables(model.model.performance_model_names ?? []);
 const base = import.meta.env.BASE_URL;
 const basePrefix = base.endsWith('/') ? base : base + '/';
 const baseSuffix = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -325,6 +327,7 @@ addToc('reference', 'sectionMoreInfo');
             evaluationAccuracyZh={modelZh.evaluation?.accuracy?.content}
             evaluationPerformanceEn={modelEn.evaluation?.performance?.content}
             evaluationPerformanceZh={modelZh.evaluation?.performance?.content}
+            performanceTables={performanceTables}
           />
         </section>
       </div>

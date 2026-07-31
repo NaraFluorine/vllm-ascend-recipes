@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLang } from '../lib/useLang';
+import type { PerformanceTable } from '../lib/types';
 
 interface Reference {
   title: string;
@@ -22,6 +23,7 @@ interface ReferenceTabsProps {
   evaluationAccuracyZh?: string;
   evaluationPerformanceEn?: string;
   evaluationPerformanceZh?: string;
+  performanceTables?: PerformanceTable[];
 }
 
 function renderContent(md: string): string {
@@ -166,6 +168,44 @@ function renderContent(md: string): string {
 
 type TabId = 'performance' | 'tuning' | 'faq' | 'references';
 
+function PerformanceDataTable({ table }: { table: PerformanceTable }) {
+  return (
+    <div>
+      <h3 className="font-display text-base font-semibold text-ink-200 mb-3">{table.sheetName}</h3>
+      <div className="overflow-x-auto rounded-lg border border-ink-800/60 mb-4">
+        <table className="w-full min-w-max text-sm">
+          <thead>
+            <tr className="border-b border-ink-800/60 bg-ink-900/40">
+              {table.headers.map((header, index) => (
+                <th
+                  key={`${header}-${index}`}
+                  className="text-left py-2.5 px-4 font-mono text-xs font-medium text-ink-300 uppercase"
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, rowIndex) => (
+              <tr
+                key={rowIndex}
+                className="border-b border-ink-800/40 last:border-0 hover:bg-ink-900/30 transition-colors"
+              >
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="py-2.5 px-4 text-ink-400 font-mono text-xs">
+                    {cell || '-'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ReferenceTabs({
   accuracyEn,
   accuracyZh,
@@ -181,6 +221,7 @@ export default function ReferenceTabs({
   evaluationAccuracyZh,
   evaluationPerformanceEn,
   evaluationPerformanceZh,
+  performanceTables = [],
 }: ReferenceTabsProps) {
   const { lang, t } = useLang();
   const accuracy = lang === 'zh' && accuracyZh ? accuracyZh : accuracyEn || '';
@@ -198,7 +239,7 @@ export default function ReferenceTabs({
 
   const hasAccuracy = !!accuracyEn || !!evaluationAccuracyEn;
   const hasBenchmark = !!benchmarkEn || !!evaluationPerformanceEn;
-  const hasPerformance = hasAccuracy || hasBenchmark;
+  const hasPerformance = hasAccuracy || hasBenchmark || performanceTables.length > 0;
   const hasTuning = !!tuningEn;
   const hasFaq = !!faqEn;
   const hasReferences = referencesEn.length > 0;
@@ -235,6 +276,9 @@ export default function ReferenceTabs({
       <div className="px-5 py-5 bg-ink-950/60">
         {active === 'performance' && (
           <div className="space-y-8">
+            {performanceTables.map((table) => (
+              <PerformanceDataTable key={table.sheetName} table={table} />
+            ))}
             {hasAccuracy && (
               <div>
                 <h3 className="font-display text-base font-semibold text-ink-200 mb-3">

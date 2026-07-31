@@ -11,6 +11,9 @@ meta:
 
 model:
   model_id: "zai-org/GLM-5"
+  performance_model_names:
+    - "GLM-5"
+    - "GLM-5.1"
   min_vllm_version: "0.17.0rc1"
   architecture: moe
   parameter_count: "744B"

@@ -11,6 +11,8 @@ meta:
 
 model:
   model_id: "Qwen/Qwen3-30B-A3B"
+  performance_model_names:
+    - "Qwen3-30B-A3B"
   min_vllm_version: "0.8.4rc2"
   architecture: moe
   parameter_count: "30.5B"
