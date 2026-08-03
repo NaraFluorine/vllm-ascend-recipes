@@ -1,0 +1,22 @@
+{
+  "model": "GLM-5",
+  "last_pr_run": null,
+  "last_nightly_run": {
+    "kind": "nightly",
+    "status": "skip",
+    "conclusion": "success",
+    "head_sha": "c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c",
+    "workflow_run_id": 30762620361,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30762620361",
+    "recipe_path": "models/en/THUDM/GLM-5.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c/models/en/THUDM/GLM-5.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c/GLM-5.params.json",
+    "started_at": "2026-08-01T19:46:52Z",
+    "finished_at": "2026-08-02T19:34:29Z",
+    "pr_number": null,
+    "pr_url": null,
+    "pr_title": null,
+    "pr_author": null
+  }
+}

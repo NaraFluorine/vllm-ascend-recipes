@@ -1,0 +1,19 @@
+{
+  "recipe_path": "models/en/THUDM/GLM-5.2.yaml",
+  "model_id": "zai-org/GLM-5.2",
+  "hw_key": "atlas_800_a2",
+  "head_sha": "6175b9914a09091268a1258965dcef05f7adb44c",
+  "trigger_type": "nightly",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1",
+  "started_at": "2026-07-27T13:29:00Z",
+  "scenarios": [
+    {
+      "index": 0,
+      "npu": "Atlas 800I A2",
+      "precision": "W8A8",
+      "deployment": "多节点",
+      "case": "Multi Node",
+      "serve_cmd": "export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7\nexport HCCL_OP_EXPANSION_MODE=\"AIV\"\nexport HCCL_BUFFSIZE=200\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport VLLM_ASCEND_BALANCE_SCHEDULING=1\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=1\nexport VLLM_ASCEND_ENABLE_MLAPO=1\nexport HCCL_IF_IP=<node0_ip>\nexport GLOO_SOCKET_IFNAME=<nic_name>\nexport TP_SOCKET_IFNAME=<nic_name>\nexport HCCL_SOCKET_IFNAME=<nic_name>\n\nvllm serve /root/.cache/modelscope/hub/models/Eco-Tech/Qwen3-30B-A3B-w8a8 \\\n    --served-model-name glm-52 \\\n    --trust-remote-code \\\n    --max-num-seqs 16 \\\n    --max-model-len 40000 \\\n    --max-num-batched-tokens 4096 \\\n    --data-parallel-size 2 \\\n    --data-parallel-size-local 1 \\\n    --data-parallel-address <node0_ip> \\\n    --data-parallel-rpc-port 12890 \\\n    --tensor-parallel-size 8 \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --gpu-memory-utilization 0.95 \\\n    --block-size 128 \\\n    --safetensors-load-strategy prefetch \\\n    --additional-config '{\"multistream_overlap_shared_expert\": true}' \\\n    --compilation-config '{\"cudagraph_mode\": \"FULL_DECODE_ONLY\"}' \\\n    --seed 1024 \\\n    --port 8000"
+    }
+  ]
+}

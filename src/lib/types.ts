@@ -4,8 +4,11 @@ export interface Meta {
   provider: string;
   description: string;
   date_added: string;
+  date_updated?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
   tasks?: string[];
   performance_headline?: string;
+  related_recipes?: string[];
   hardware?: Record<string, 'verified' | 'unsupported' | 'experimental'>;
 }
 
@@ -132,6 +135,10 @@ export interface ModelListItem {
   npus: string[];
   precisions: string[];
   deployments: string[];
+  /** Optional internal slug used by VerifyBadge / status hydration. */
+  _model_slug?: string;
+  /** Optional absolute URL to `status/<slug>.json` (filled at JSON endpoint build time). */
+  _status_url?: string;
 }
 
 export interface ProviderInfo {

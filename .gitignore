@@ -2,6 +2,9 @@
 dist/
 # generated types
 .astro/
+# python bytecode
+__pycache__/
+*.pyc
 
 # dependencies
 node_modules/
@@ -25,3 +28,9 @@ pnpm-debug.log*
 
 .vscode/
 .codegraph/
+
+# NOTE: public/status/ and public/runs/ are intentionally NOT ignored.
+# They hold CI status fixtures used by local dev and PR preview (Netlify)
+# so the badge UI renders before the first real publish-status.yml run
+# produces live data. In production publish-status.yml writes the same
+# paths on main, overwriting the fixtures on each CI completion.

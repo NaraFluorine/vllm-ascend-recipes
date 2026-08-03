@@ -1,0 +1,25 @@
+{
+  "models": [
+    {
+      "slug": "DeepSeek-V4-Flash"
+    },
+    {
+      "slug": "GLM-4.x"
+    },
+    {
+      "slug": "GLM-5.2"
+    },
+    {
+      "slug": "GLM-5"
+    },
+    {
+      "slug": "Qwen3-235B-A22B"
+    },
+    {
+      "slug": "Qwen3-30B-A3B"
+    },
+    {
+      "slug": "Qwen3.5-27B-Qwen3.6-27B"
+    }
+  ]
+}

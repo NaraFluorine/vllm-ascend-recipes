@@ -39,6 +39,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Status JSON (public/status/, public/runs/) is committed to main by
+      # publish-status.yml. Astro's normal `public/` → `dist/` copy during
+      # `pnpm build` above already picked them up — no second-branch merge
+      # step is needed at deploy time.
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

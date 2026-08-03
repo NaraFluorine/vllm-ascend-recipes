@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLang } from '../lib/useLang';
+import { resolveVllmAscendLink } from '../lib/links';
 
 interface PrerequisiteItem {
   title: string;
@@ -134,7 +135,8 @@ function renderContent(md: string): string {
         .replace(/^- (.+)$/, '$1')
         .replace(
           /\[([^\]]+)\]\(([^)]+)\)/g,
-          '<a href="$2" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">$1</a>',
+          (_, label, url) =>
+            `<a href="${resolveVllmAscendLink(url)}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">${label}</a>`,
         )
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*(.+?)\*\*/g, '<strong class="text-ink-200 font-semibold">$1</strong>');
@@ -159,7 +161,8 @@ function renderContent(md: string): string {
     const processed = line
       .replace(
         /\[([^\]]+)\]\(([^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">$1</a>',
+        (_, label, url) =>
+          `<a href="${resolveVllmAscendLink(url)}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">${label}</a>`,
       )
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*(.+?)\*\*/g, '<strong class="text-ink-200 font-semibold">$1</strong>');

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLang } from '../lib/useLang';
+import { resolveVllmAscendLink } from '../lib/links';
 
 interface WeightSource {
   source: string;
@@ -51,7 +52,8 @@ function renderMarkdown(md: string): string {
       const processed = line
         .replace(
           /\[([^\]]+)\]\(([^)]+)\)/g,
-          '<a href="$2" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">$1</a>',
+          (_, label, url) =>
+            `<a href="${resolveVllmAscendLink(url)}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-300 border-b border-accent-500/30">${label}</a>`,
         )
         .replace(/`([^`]+)`/g, '<code>$1</code>');
       result.push(`<p class="text-sm text-ink-400 leading-relaxed mb-4">${processed}</p>`);

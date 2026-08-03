@@ -1,0 +1,39 @@
+{
+  "model": "Qwen3.5-27B-Qwen3.6-27B",
+  "last_pr_run": {
+    "kind": "pr",
+    "status": "pass",
+    "conclusion": "success",
+    "head_sha": "791bd0942fe0b1470ac9fcd79dadbd90be621027",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/791bd0942fe0b1470ac9fcd79dadbd90be621027",
+    "workflow_run_id": 30321655550,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30321655550",
+    "recipe_path": "models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/791bd0942fe0b1470ac9fcd79dadbd90be621027/models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/791bd0942fe0b1470ac9fcd79dadbd90be621027/Qwen3.5-27B-Qwen3.6-27B.params.json",
+    "started_at": "2026-07-28T01:55:39Z",
+    "finished_at": "2026-07-28T02:14:02Z",
+    "pr_number": null,
+    "pr_url": null,
+    "pr_title": null,
+    "pr_author": null
+  },
+  "last_nightly_run": {
+    "kind": "nightly",
+    "status": "pass",
+    "conclusion": "success",
+    "head_sha": "c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c",
+    "workflow_run_id": 30762620361,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/30762620361",
+    "recipe_path": "models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c/models/en/Qwen/Qwen3.5-27B-Qwen3.6-27B.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/c5fea56633d65df10b7cc1bf4253b2b3f7e17d0c/Qwen3.5-27B-Qwen3.6-27B.params.json",
+    "started_at": "2026-08-01T19:46:52Z",
+    "finished_at": "2026-08-02T19:34:30Z",
+    "pr_number": null,
+    "pr_url": null,
+    "pr_title": null,
+    "pr_author": null
+  }
+}

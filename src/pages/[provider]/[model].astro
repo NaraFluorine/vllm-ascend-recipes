@@ -8,6 +8,7 @@ import PrepareTabs from '../../components/PrepareTabs.tsx';
 import ReferenceTabs from '../../components/ReferenceTabs.tsx';
 import { getAllModels, formatContextLength, formatParameters } from '../../lib/models';
 import { getPerformanceTables } from '../../lib/performance-data';
+import VerifyBadge from '../../components/VerifyBadge.astro';
 import type { Model } from '../../lib/types';
 
 export const getStaticPaths = (async () => {
@@ -155,6 +156,16 @@ addToc('reference', 'sectionMoreInfo');
                 <Tag label={`vLLM ${model.model.min_vllm_version}`} color="blue" />
               )
             }
+            {
+              model.meta.difficulty && (
+                <Tag label={`Difficulty: ${model.meta.difficulty}`} color="red" />
+              )
+            }
+            {
+              model.meta.tasks &&
+                model.meta.tasks.length > 0 &&
+                model.meta.tasks.map((task) => <Tag label={task} color="gray" />)
+            }
           </div>
 
           {/* Hardware support badges */}
@@ -242,7 +253,17 @@ addToc('reference', 'sectionMoreInfo');
           }
 
           <div class="flex items-center gap-3 text-[11px] font-mono text-ink-600">
-            <span><span data-i18n="updated">Updated</span>: {model.meta.date_added}</span>
+            <span><span data-i18n="added">Added</span>: {model.meta.date_added}</span>
+            {
+              model.meta.date_updated && (
+                <>
+                  <span>·</span>
+                  <span>
+                    <span data-i18n="updated">Updated</span>: {model.meta.date_updated}
+                  </span>
+                </>
+              )
+            }
             <span>·</span>
             <a
               href={editUrl}
@@ -253,6 +274,19 @@ addToc('reference', 'sectionMoreInfo');
             >
               [ edit ]
             </a>
+          </div>
+
+          {
+            /*
+             * CI verification badge: PR/nightly result + duration + commit link,
+             * with expandable "view execution details" panel linking to params.json.
+             * Status data is fetched client-side from the gh-pages branch;
+             * publishing never modifies the recipe YAML in main, so the
+             * main pipeline is not re-triggered.
+             */
+          }
+          <div class="mt-4">
+            <VerifyBadge modelSlug={model._model_slug} title={model.meta.title} />
           </div>
         </div>
 
