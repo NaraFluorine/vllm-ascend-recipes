@@ -15,7 +15,7 @@ meta:
 
 model:
   model_id: "deepseek-ai/DeepSeek-V4-Flash"
-  min_vllm_version: "0.23"
+  min_vllm_version: "0.23rc1"
   architecture: moe
   parameter_count: "284B"
   active_parameters: "13B"
@@ -332,7 +332,7 @@ scenarios:
   steps:
   - title: Overview
     content: |-
-      We recommend using Mooncake for deployment: [Mooncake](../features/pd_disaggregation_mooncake_multi_node.md).
+      We recommend using Mooncake for deployment: [Mooncake](https://github.com/vllm-project/vllm-ascend/blob/v0.23.0rc1/docs/source/tutorials/features/pd_disaggregation_mooncake_multi_node.md).
 
       In the standard single-node deployment mode, Prefill (prompt processing) and Decode (token generation) tasks run on the same set of NPUs. This can lead to two issues:
 
