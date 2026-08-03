@@ -11,7 +11,7 @@ meta:
 
 model:
   model_id: "deepseek-ai/DeepSeek-V4-Flash"
-  min_vllm_version: "0.8.4rc2"
+  min_vllm_version: "v0.23.0rc1"
   architecture: moe
   parameter_count: "284B"
   active_parameters: "13B"
@@ -320,7 +320,7 @@ scenarios:
   steps:
   - title: 概述
     content: |-
-      我们推荐使用 Mooncake 进行部署：[Mooncake](../features/pd_disaggregation_mooncake_multi_node.md)。
+      我们推荐使用 Mooncake 进行部署：[Mooncake](https://github.com/vllm-project/vllm-ascend/blob/v0.23.0rc1/docs/source/tutorials/features/pd_disaggregation_mooncake_multi_node.md)。
 
       在标准的单节点部署模式下，Prefill（提示词处理）和 Decode（token 生成）任务在同一组 NPU 上运行。这可能导致两个问题：
 
