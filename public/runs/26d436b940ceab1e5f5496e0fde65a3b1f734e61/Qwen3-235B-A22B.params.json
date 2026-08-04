@@ -1,0 +1,11 @@
+{
+  "recipe_path": "models/en/Qwen/Qwen3-235B-A22B.yaml",
+  "model_id": "",
+  "hw_key": "atlas_800_a2",
+  "head_sha": "26d436b940ceab1e5f5496e0fde65a3b1f734e61",
+  "trigger_type": "pr",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1",
+  "started_at": "2026-08-04T01:17:39Z",
+  "scenarios": [],
+  "skip_reason": "Recipe marks atlas_800_a2 as unsupported"
+}
