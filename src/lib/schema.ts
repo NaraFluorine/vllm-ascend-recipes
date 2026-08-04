@@ -29,6 +29,7 @@ export const metaSchema = z.object({
 // ========== Model ==========
 export const modelInfoSchema = z.object({
   model_id: z.string(),
+  performance_model_names: z.array(z.string().trim().min(1)).min(1).optional(),
   min_vllm_version: z.string().optional(),
   architecture: z.enum(['dense', 'moe']),
   parameter_count: z.string(),

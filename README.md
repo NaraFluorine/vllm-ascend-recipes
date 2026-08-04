@@ -147,6 +147,7 @@ The schema lives in [`src/lib/schema.ts`](src/lib/schema.ts) and is enforced by 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `model_id` | yes | HuggingFace / ModelScope model id (e.g. `Qwen/Qwen3-235B-A22B`) |
+| `performance_model_names` | no | Exact model names accepted from the first (`模型`) column in any sheet of `op.xlsx`; provide an array when one page represents multiple spreadsheet names |
 | `min_vllm_version` | no | Minimum vLLM-Ascend version required |
 | `architecture` | yes | `dense` or `moe` |
 | `parameter_count` | yes | Total parameters (e.g. `235B`, `30.5B`) |

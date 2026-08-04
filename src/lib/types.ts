@@ -14,6 +14,7 @@ export interface Meta {
 
 export interface ModelInfo {
   model_id: string;
+  performance_model_names?: string[];
   min_vllm_version?: string;
   architecture: 'dense' | 'moe';
   parameter_count: string;
@@ -83,6 +84,12 @@ export interface Scenario {
 export interface PerformanceSection {
   accuracy?: string;
   benchmark?: string;
+}
+
+export interface PerformanceTable {
+  sheetName: string;
+  headers: string[];
+  rows: string[][];
 }
 
 export interface Evaluation {
