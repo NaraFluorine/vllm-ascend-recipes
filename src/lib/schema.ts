@@ -98,6 +98,13 @@ export const extraConfigItemSchema = z.object({
   label: z.string(),
 });
 
+export const scenarioSelectorLabelsSchema = z.object({
+  npu: z.string().optional(),
+  precision: z.string().optional(),
+  deployment: z.string().optional(),
+  case: z.string().optional(),
+});
+
 export const scenarioSchema = z.object({
   npu: z.string(),
   precision: z.string(),
@@ -136,6 +143,7 @@ export const modelSchema = z.object({
   env_setup: envSetupSchema,
   scenarios: z.array(scenarioSchema),
   extra_config: z.array(extraConfigItemSchema).optional(),
+  scenario_selector_labels: scenarioSelectorLabelsSchema.optional(),
   performance: performanceSectionSchema.optional(),
   evaluation: evaluationSchema.optional(),
   verification: z.string().optional(),

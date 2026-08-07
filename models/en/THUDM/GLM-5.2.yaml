@@ -211,15 +211,19 @@ env_setup:
       > **Note**: If deploying a multi-node environment, set up the environment on each node.
 
       For more details, please refer to the [Installation Guide](https://docs.vllm.ai/projects/ascend/en/latest/installation.html).
+scenario_selector_labels:
+  precision: Quantization
+  deployment: Sequence
+  case: Scenario
 scenarios:
 - npu: Atlas 800I A3
   precision: W8A8
-  deployment: 单节点-多卡
-  case: Multi Card
+  deployment: 20K
+  case: High Throughput
   steps:
   - title: Start the server
     content: |-
-      Single-node deployment for GLM-5.2 W8A8 quantized model on Atlas 800I A3.
+      Single-node high-throughput configuration.
 
       ```bash
       export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -250,27 +254,55 @@ scenarios:
           --seed 1024 \
           --port 8000
       ```
-
-      > - `VLLM_ASCEND_ENABLE_MLAPO=1`: required for W8A8 quantized models.
-      > - `--async-scheduling`: enables asynchronous scheduling to overlap CPU scheduling with NPU computation.
-      > - For low-latency scenarios, recommend `dp1 tp16` with expert parallel disabled.
-
-      For parameter details, refer to:
-
-      - [vLLM CLI documentation](https://docs.vllm.ai/en/stable/cli/) — standard serve parameters
-      - [Environment Variables](https://docs.vllm.ai/projects/ascend/en/latest/user_guide/configuration/env_vars.html) — Ascend-specific environment variables
-      - [Additional Configuration](https://docs.vllm.ai/projects/ascend/en/latest/user_guide/configuration/additional_config.html) — `--additional-config` format and options
   - title: Service Verification
     content: |-
-      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+      After the service is started, verify it by sending a prompt. Refer to the verification section below for an example.
 - npu: Atlas 800I A3
   precision: W8A8
-  deployment: 多节点
-  case: Multi Node
+  deployment: 20K
+  case: Low Latency
   steps:
   - title: Start the server
     content: |-
-      Multi-node deployment for GLM-5.2 W8A8 quantized model on Atlas 800I A3 (2 nodes).
+      Single-node low-latency configuration.
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=200
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_MLAPO=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --max-num-seqs 8 \
+          --max-model-len 20480 \
+          --max-num-batched-tokens 4096 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 16 \
+          --quantization ascend \
+          --gpu-memory-utilization 0.95 \
+          --async-scheduling \
+          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --seed 1024 \
+          --port 8000
+      ```
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it by sending a prompt. Refer to the verification section below for an example.
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 64K
+  case: Long Context
+  steps:
+  - title: Start the server
+    content: |-
+      Two-node long-context configuration.
 
       **Node 0:**
 
@@ -351,106 +383,227 @@ scenarios:
           --seed 1024 \
           --port 8000
       ```
-
-      > - Replace `<node0_ip>` and `<node1_ip>` with actual node IP addresses.
-      > - Replace `<nic_name>` with the actual network interface name.
-      > - Node 1 requires `--headless` and `--data-parallel-start-rank 1`.
   - title: Service Verification
     content: |-
-      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+      After the service is started, verify it by sending a prompt. Refer to the verification section below for an example.
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 135K
+  case: PD Separation
+  steps:
+  - title: Start the server
+    content: |-
+      A3 multi-node PD configuration.
+
+      ```bash
+      # Prefill nodes
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 135000 \
+          --max-num-seqs 32 \
+          --data-parallel-size 2 \
+          --tensor-parallel-size 16 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --enable-prefix-caching \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode nodes
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export VLLM_ASCEND_ENABLE_MLAPO=1
+      export DYNAMIC_EPLB=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135000 \
+          --max-num-seqs 32 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}' \
+          --additional-config '{"multistream_overlap_shared_expert": true, "recompute_scheduler_enable": true}'
+      ```
+  - title: Service Verification
+    content: |-
+      After all PD services are started, verify through the proxy endpoint that Prefill and Decode nodes work together.
 - npu: Atlas 800I A2
   precision: W8A8
-  deployment: 多节点
-  case: Multi Node
+  deployment: 135K
+  case: PD Separation
   steps:
   - title: Start the server
     content: |-
-      Multi-node deployment for GLM-5.2 W8A8 quantized model on Atlas 800I A2 (2 nodes).
-
-      **Node 0:**
+      A2 multi-node PD configuration.
 
       ```bash
+      # Prefill nodes
       export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-      export HCCL_OP_EXPANSION_MODE="AIV"
-      export HCCL_BUFFSIZE=200
-      export OMP_PROC_BIND=false
-      export OMP_NUM_THREADS=10
-      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-      export VLLM_ASCEND_BALANCE_SCHEDULING=1
       export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 115168 \
+          --max-num-seqs 16 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --block-size 128 \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode nodes
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
       export VLLM_ASCEND_ENABLE_MLAPO=1
-      export HCCL_IF_IP=<node0_ip>
-      export GLOO_SOCKET_IFNAME=<nic_name>
-      export TP_SOCKET_IFNAME=<nic_name>
-      export HCCL_SOCKET_IFNAME=<nic_name>
+      export DYNAMIC_EPLB=1
 
       vllm serve your_model_path \
           --served-model-name glm-52 \
           --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135168 \
           --max-num-seqs 16 \
-          --max-model-len 40000 \
-          --max-num-batched-tokens 4096 \
-          --data-parallel-size 2 \
-          --data-parallel-size-local 1 \
-          --data-parallel-address <node0_ip> \
-          --data-parallel-rpc-port 12890 \
-          --tensor-parallel-size 8 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.95 \
           --block-size 128 \
-          --safetensors-load-strategy prefetch \
-          --additional-config '{"multistream_overlap_shared_expert": true}' \
-          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
-          --seed 1024 \
-          --port 8000
-      ```
-
-      **Node 1:**
-
-      ```bash
-      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-      export HCCL_OP_EXPANSION_MODE="AIV"
-      export HCCL_BUFFSIZE=200
-      export OMP_PROC_BIND=false
-      export OMP_NUM_THREADS=10
-      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-      export VLLM_ASCEND_BALANCE_SCHEDULING=1
-      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
-      export VLLM_ASCEND_ENABLE_MLAPO=1
-      export HCCL_IF_IP=<node1_ip>
-      export GLOO_SOCKET_IFNAME=<nic_name>
-      export TP_SOCKET_IFNAME=<nic_name>
-      export HCCL_SOCKET_IFNAME=<nic_name>
-
-      vllm serve your_model_path \
-          --served-model-name glm-52 \
-          --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 40000 \
-          --max-num-batched-tokens 4096 \
-          --data-parallel-size 2 \
-          --data-parallel-size-local 1 \
-          --data-parallel-start-rank 1 \
-          --data-parallel-address <node0_ip> \
-          --data-parallel-rpc-port 12890 \
-          --tensor-parallel-size 8 \
-          --enable-expert-parallel \
-          --headless \
-          --quantization ascend \
-          --gpu-memory-utilization 0.95 \
-          --block-size 128 \
-          --safetensors-load-strategy prefetch \
-          --additional-config '{"multistream_overlap_shared_expert": true}' \
-          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
-          --seed 1024 \
-          --port 8000
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}' \
+          --additional-config '{"multistream_overlap_shared_expert": true, "recompute_scheduler_enable": true}'
       ```
   - title: Service Verification
     content: |-
-      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+      After all PD services are started, verify through the proxy endpoint that Prefill and Decode nodes work together.
+- npu: Atlas 800I A2
+  precision: W4A8C8
+  deployment: 250K
+  case: High Throughput
+  steps:
+  - title: Start the server
+    content: |-
+      A2 W4A8C8 high-throughput 250K configuration.
+
+      ```bash
+      # Prefill nodes
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 250000 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode nodes
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 250000 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
+      ```
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it by sending a prompt. Refer to the verification section below for an example.
+- npu: Atlas 800I A2
+  precision: W4A8C8
+  deployment: 1M
+  case: High Throughput
+  steps:
+  - title: Start the server
+    content: |-
+      A2 W4A8C8 high-throughput 1M configuration.
+
+      ```bash
+      # Prefill nodes
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 1024000 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode nodes
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 1024000 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
+      ```
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it by sending a prompt. Refer to the verification section below for an example.
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: 135K
+  case: PD Separation
+  steps:
+  - title: Start the server
+    content: |-
+      A3 W4A8C8 1P1D configuration.
+
+      ```bash
+      # Prefill node
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 135000 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode node
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135000 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
+      ```
+  - title: Service Verification
+    content: |-
+      After all PD services are started, verify through the proxy endpoint that Prefill and Decode nodes work together.
 verification: |-
   After the service is started, the model can be invoked by sending a prompt.
 
@@ -483,44 +636,9 @@ performance:
   benchmark: |-
     ### Recommended Configurations
 
-    > **Note**: The following configurations are validated in specific test environments and are for reference only. The optimal configuration depends on factors such as maximum input/output length, prefix cache hit rate, precision requirements, and deployment machine ratios.
+    The recommended configurations are available in the Deployment Guide options above. Choose NPU type, quantization, sequence, and scenario to view the corresponding command.
 
-    #### Table 1: Scenario Overview
-
-    | Scenario | Deployment Mode | Device | *Total NPUs | Weight Version | Key Considerations |
-    |----------|----------------|--------|-------------|----------------|-------------------|
-    | High Throughput | Single-Node | A3 | 16 | W8A8 | dp2 tp8 with expert parallel for maximum throughput |
-    | Low Latency | Single-Node | A3 | 16 | W8A8 | dp1 tp16 with expert parallel disabled for lower latency |
-    | Long Context | Multi-Node | A3 | 32 | W8A8 | 2 nodes, dp2 tp16 for extended context |
-    | High Throughput (250K) | 1*4P + 1*4D | A2 | 32 | W4A8C8 | Prefill dp4 tp8, Decode dp8 tp4, max model length 250000 |
-    | High Throughput (1M) | 1*4P + 1*4D | A2 | 32 | W4A8C8 | Prefill dp4 tp8, Decode dp4 tp8, max model length 1024000 |
-    | PD Separation | 1P1D | A3 | 16 | W4A8C8 | Prefill/Decode disaggregated deployment |
-    | PD Separation | Multi-Node | A3 | 32 | W8A8 | 4 nodes, 1P1D deployment for production workloads |
-    | PD Separation | Multi-Node | A2 | 64 | W8A8 | 8 nodes, 2P2D deployment |
-
-    > `*Total NPUs` indicates the total number of NPU chips used across all nodes.
-
-    #### Table 2: PD Separation Configuration (A3)
-
-    | Role | Config | Max Model Len | MTP Tokens |
-    |------|--------|---------------|------------|
-    | Prefill | dp=2, tp=16 | 135000 | 5 |
-    | Decode | dp=8, tp=4 | 135000 | 5 |
-
-    #### Table 3: PD Separation Configuration (A2)
-
-    | Role | Config | Max Model Len | MTP Tokens |
-    |------|--------|---------------|------------|
-    | Prefill | dp=4, tp=8 | 115168 | 3 |
-    | Decode | dp=8, tp=4 | 135168 | 3 |
-
-    #### Table 4: W4A8C8 Supported Configurations
-
-    | Deployment Mode | Scenario | Device | Total NPUs | Prefill Config | Decode Config | Max Model Len |
-    |----------------|----------|--------|------------|----------------|---------------|---------------|
-    | 1*4P + 1*4D | High Throughput (250K) | A2 | 32 | dp=4, tp=8 | dp=8, tp=4 | 250000 |
-    | 1*4P + 1*4D | High Throughput (1M) | A2 | 32 | dp=4, tp=8 | dp=4, tp=8 | 1024000 |
-    | 1P1D | PD Separation | A3 | 16 | - | - | - |
+    > **Note**: These configurations are validated in specific test environments and are for reference only. The optimal configuration depends on factors such as maximum input/output length, prefix cache hit rate, precision requirements, and deployment machine ratios.
 tuning: |-
   ### Tuning Guidelines
 

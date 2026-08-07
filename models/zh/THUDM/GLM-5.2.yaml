@@ -211,15 +211,19 @@ env_setup:
       > **注意**：如果部署多节点环境，需要在每个节点上设置环境。
 
       更多详情请参考 [安装指南](https://docs.vllm.ai/projects/ascend/zh-cn/latest/installation.html)。
+scenario_selector_labels:
+  precision: 量化
+  deployment: 序列
+  case: 场景
 scenarios:
 - npu: Atlas 800I A3
   precision: W8A8
-  deployment: 单节点-多卡
-  case: Multi Card
+  deployment: 20K
+  case: 高吞吐
   steps:
   - title: 启动服务
     content: |-
-      GLM-5.2 W8A8 量化模型在 Atlas 800I A3 上的单节点部署。
+      单节点高吞吐配置。
 
       ```bash
       export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -250,27 +254,55 @@ scenarios:
           --seed 1024 \
           --port 8000
       ```
-
-      > - `VLLM_ASCEND_ENABLE_MLAPO=1`：W8A8 量化模型必需。
-      > - `--async-scheduling`：启用异步调度，使 CPU 调度与 NPU 计算重叠。
-      > - 低延迟场景推荐 `dp1 tp16` 并禁用专家并行。
-
-      参数详情请参考：
-
-      - [vLLM CLI 文档](https://docs.vllm.ai/en/stable/cli/) — 标准服务参数
-      - [环境变量](https://docs.vllm.ai/projects/ascend/zh-cn/latest/user_guide/configuration/env_vars.html) — 昇腾专用环境变量
-      - [附加配置](https://docs.vllm.ai/projects/ascend/zh-cn/latest/user_guide/configuration/additional_config.html) — `--additional-config` 格式和选项
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
 - npu: Atlas 800I A3
   precision: W8A8
-  deployment: 多节点
-  case: Multi Node
+  deployment: 20K
+  case: 低延迟
   steps:
   - title: 启动服务
     content: |-
-      GLM-5.2 W8A8 量化模型在 Atlas 800I A3（2 节点）上的多节点部署。
+      单节点低延迟配置。
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=200
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_MLAPO=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --max-num-seqs 8 \
+          --max-model-len 20480 \
+          --max-num-batched-tokens 4096 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 16 \
+          --quantization ascend \
+          --gpu-memory-utilization 0.95 \
+          --async-scheduling \
+          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --seed 1024 \
+          --port 8000
+      ```
+  - title: 服务验证
+    content: |-
+      服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 64K
+  case: 长上下文
+  steps:
+  - title: 启动服务
+    content: |-
+      两节点长上下文配置。
 
       **节点 0：**
 
@@ -351,106 +383,227 @@ scenarios:
           --seed 1024 \
           --port 8000
       ```
+  - title: 服务验证
+    content: |-
+      服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 135K
+  case: PD 分离
+  steps:
+  - title: 启动服务
+    content: |-
+      A3 多节点 PD 分离配置。
 
-      > - 将 `<node0_ip>` 和 `<node1_ip>` 替换为实际的节点 IP 地址。
-      > - 将 `<nic_name>` 替换为实际的网络接口名称。
-      > - 节点 1 需要 `--headless` 和 `--data-parallel-start-rank 1`。
+      ```bash
+      # Prefill 节点
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 135000 \
+          --max-num-seqs 32 \
+          --data-parallel-size 2 \
+          --tensor-parallel-size 16 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --enable-prefix-caching \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode 节点
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export VLLM_ASCEND_ENABLE_MLAPO=1
+      export DYNAMIC_EPLB=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135000 \
+          --max-num-seqs 32 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}' \
+          --additional-config '{"multistream_overlap_shared_expert": true, "recompute_scheduler_enable": true}'
+      ```
+  - title: 服务验证
+    content: |-
+      PD 分离服务完全启动后，通过 proxy 入口验证 Prefill 和 Decode 节点是否正常协同工作。
+- npu: Atlas 800I A2
+  precision: W8A8
+  deployment: 135K
+  case: PD 分离
+  steps:
+  - title: 启动服务
+    content: |-
+      A2 多节点 PD 分离配置。
+
+      ```bash
+      # Prefill 节点
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 115168 \
+          --max-num-seqs 16 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --block-size 128 \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode 节点
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+      export VLLM_ASCEND_ENABLE_MLAPO=1
+      export DYNAMIC_EPLB=1
+
+      vllm serve your_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135168 \
+          --max-num-seqs 16 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --block-size 128 \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}' \
+          --additional-config '{"multistream_overlap_shared_expert": true, "recompute_scheduler_enable": true}'
+      ```
+  - title: 服务验证
+    content: |-
+      PD 分离服务完全启动后，通过 proxy 入口验证 Prefill 和 Decode 节点是否正常协同工作。
+- npu: Atlas 800I A2
+  precision: W4A8C8
+  deployment: 250K
+  case: 高吞吐
+  steps:
+  - title: 启动服务
+    content: |-
+      A2 W4A8C8 高吞吐 250K 配置。
+
+      ```bash
+      # Prefill 节点
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 250000 \
+          --data-parallel-size 4 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode 节点
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 250000 \
+          --data-parallel-size 8 \
+          --tensor-parallel-size 4 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
+      ```
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
 - npu: Atlas 800I A2
-  precision: W8A8
-  deployment: 多节点
-  case: Multi Node
+  precision: W4A8C8
+  deployment: 1M
+  case: 高吞吐
   steps:
   - title: 启动服务
     content: |-
-      GLM-5.2 W8A8 量化模型在 Atlas 800I A2（2 节点）上的多节点部署。
-
-      **节点 0：**
+      A2 W4A8C8 高吞吐 1M 配置。
 
       ```bash
-      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-      export HCCL_OP_EXPANSION_MODE="AIV"
-      export HCCL_BUFFSIZE=200
-      export OMP_PROC_BIND=false
-      export OMP_NUM_THREADS=10
-      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-      export VLLM_ASCEND_BALANCE_SCHEDULING=1
-      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
-      export VLLM_ASCEND_ENABLE_MLAPO=1
-      export HCCL_IF_IP=<node0_ip>
-      export GLOO_SOCKET_IFNAME=<nic_name>
-      export TP_SOCKET_IFNAME=<nic_name>
-      export HCCL_SOCKET_IFNAME=<nic_name>
-
-      vllm serve your_model_path \
-          --served-model-name glm-52 \
+      # Prefill 节点
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 40000 \
-          --max-num-batched-tokens 4096 \
-          --data-parallel-size 2 \
-          --data-parallel-size-local 1 \
-          --data-parallel-address <node0_ip> \
-          --data-parallel-rpc-port 12890 \
+          --port 8100 \
+          --max-model-len 1024000 \
+          --data-parallel-size 4 \
           --tensor-parallel-size 8 \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.95 \
-          --block-size 128 \
-          --safetensors-load-strategy prefetch \
-          --additional-config '{"multistream_overlap_shared_expert": true}' \
-          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
-          --seed 1024 \
-          --port 8000
-      ```
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
 
-      **节点 1：**
-
-      ```bash
-      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-      export HCCL_OP_EXPANSION_MODE="AIV"
-      export HCCL_BUFFSIZE=200
-      export OMP_PROC_BIND=false
-      export OMP_NUM_THREADS=10
-      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-      export VLLM_ASCEND_BALANCE_SCHEDULING=1
-      export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
-      export VLLM_ASCEND_ENABLE_MLAPO=1
-      export HCCL_IF_IP=<node1_ip>
-      export GLOO_SOCKET_IFNAME=<nic_name>
-      export TP_SOCKET_IFNAME=<nic_name>
-      export HCCL_SOCKET_IFNAME=<nic_name>
-
-      vllm serve your_model_path \
+      # Decode 节点
+      vllm serve your_w4a8c8_model_path \
           --served-model-name glm-52 \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 40000 \
-          --max-num-batched-tokens 4096 \
-          --data-parallel-size 2 \
-          --data-parallel-size-local 1 \
-          --data-parallel-start-rank 1 \
-          --data-parallel-address <node0_ip> \
-          --data-parallel-rpc-port 12890 \
+          --port 8000 \
+          --max-model-len 1024000 \
+          --data-parallel-size 4 \
           --tensor-parallel-size 8 \
           --enable-expert-parallel \
-          --headless \
           --quantization ascend \
-          --gpu-memory-utilization 0.95 \
-          --block-size 128 \
-          --safetensors-load-strategy prefetch \
-          --additional-config '{"multistream_overlap_shared_expert": true}' \
-          --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
-          --seed 1024 \
-          --port 8000
+          --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
       ```
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: 135K
+  case: PD 分离
+  steps:
+  - title: 启动服务
+    content: |-
+      A3 W4A8C8 1P1D 配置。
+
+      ```bash
+      # Prefill 节点
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52-prefill \
+          --trust-remote-code \
+          --port 8100 \
+          --max-model-len 135000 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_producer", "kv_port": "30400"}'
+
+      # Decode 节点
+      vllm serve your_w4a8c8_model_path \
+          --served-model-name glm-52 \
+          --trust-remote-code \
+          --port 8000 \
+          --max-model-len 135000 \
+          --data-parallel-size 1 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --speculative-config '{"num_speculative_tokens": 5, "method": "deepseek_mtp"}' \
+          --kv-transfer-config '{"kv_connector": "MooncakeConnectorV1", "kv_role": "kv_consumer", "kv_port": "30400"}'
+      ```
+  - title: 服务验证
+    content: |-
+      PD 分离服务完全启动后，通过 proxy 入口验证 Prefill 和 Decode 节点是否正常协同工作。
 verification: |-
   服务启动后，可以通过发送提示词调用模型。
 
@@ -483,44 +636,9 @@ performance:
   benchmark: |-
     ### 推荐配置
 
-    > **注意**：以下配置在特定测试环境中验证，仅供参考。最优配置取决于最大输入/输出长度、前缀缓存命中率、精度要求和部署机器配比等因素。
+    推荐配置已迁移到上方“部署指南”的选项中。请选择 NPU 型号、量化、序列和场景查看对应命令。
 
-    #### 表 1：场景概览
-
-    | 场景 | 部署模式 | 设备 | *总 NPU 数 | 权重版本 | 关键考虑 |
-    |------|---------|------|-----------|---------|---------|
-    | 高吞吐 | 单节点 | A3 | 16 | W8A8 | dp2 tp8 启用专家并行，最大化吞吐 |
-    | 低延迟 | 单节点 | A3 | 16 | W8A8 | dp1 tp16 禁用专家并行，降低延迟 |
-    | 长上下文 | 多节点 | A3 | 32 | W8A8 | 2 节点，dp2 tp16 扩展上下文 |
-    | 高吞吐（250K） | 1*4P + 1*4D | A2 | 32 | W4A8C8 | P 端 dp4 tp8，D 端 dp8 tp4，最大模型长度 250000 |
-    | 高吞吐（1M） | 1*4P + 1*4D | A2 | 32 | W4A8C8 | P 端 dp4 tp8，D 端 dp4 tp8，最大模型长度 1024000 |
-    | PD 分离 | 1P1D | A3 | 16 | W4A8C8 | P/D 分离部署 |
-    | PD 分离 | 多节点 | A3 | 32 | W8A8 | 4 节点，1P1D 部署，适用于生产工作负载 |
-    | PD 分离 | 多节点 | A2 | 64 | W8A8 | 8 节点，2P2D 部署 |
-
-    > `*总 NPU 数`表示所有节点使用的 NPU 芯片总数。
-
-    #### 表 2：PD 分离配置（A3）
-
-    | 角色 | 配置 | 最大模型长度 | MTP Token 数 |
-    |------|------|------------|-------------|
-    | Prefill | dp=2, tp=16 | 135000 | 5 |
-    | Decode | dp=8, tp=4 | 135000 | 5 |
-
-    #### 表 3：PD 分离配置（A2）
-
-    | 角色 | 配置 | 最大模型长度 | MTP Token 数 |
-    |------|------|------------|-------------|
-    | Prefill | dp=4, tp=8 | 115168 | 3 |
-    | Decode | dp=8, tp=4 | 135168 | 3 |
-
-    #### 表 4：W4A8C8 支持配置
-
-    | 部署模式 | 场景 | 设备 | 总 NPU 数 | P 节点配置 | D 节点配置 | 最大模型长度 |
-    |---------|------|------|-----------|------------|------------|------------|
-    | 1*4P + 1*4D | 高吞吐（250K） | A2 | 32 | dp=4, tp=8 | dp=8, tp=4 | 250000 |
-    | 1*4P + 1*4D | 高吞吐（1M） | A2 | 32 | dp=4, tp=8 | dp=4, tp=8 | 1024000 |
-    | 1P1D | PD 分离 | A3 | 16 | - | - | - |
+    > **注意**：这些配置在特定测试环境中验证，仅供参考。最优配置取决于最大输入/输出长度、前缀缓存命中率、精度要求和部署机器配比等因素。
 tuning: |-
   ### 调优指南
 
