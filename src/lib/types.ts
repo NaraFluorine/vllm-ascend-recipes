@@ -72,6 +72,13 @@ export interface ExtraConfigItem {
   label: string;
 }
 
+export interface ScenarioSelectorLabels {
+  npu?: string;
+  precision?: string;
+  deployment?: string;
+  case?: string;
+}
+
 export interface Scenario {
   npu: string;
   precision: string;
@@ -107,6 +114,7 @@ export interface Model {
   env_setup: EnvSetup;
   scenarios: Scenario[];
   extra_config?: ExtraConfigItem[];
+  scenario_selector_labels?: ScenarioSelectorLabels;
   performance?: PerformanceSection;
   evaluation?: Evaluation;
   verification?: string;

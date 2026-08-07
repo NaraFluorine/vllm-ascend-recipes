@@ -27,6 +27,8 @@ interface CascadeSelectorProps {
   scenariosZh: Scenario[];
   extraConfigEn?: ExtraConfigItem[];
   extraConfigZh?: ExtraConfigItem[];
+  selectorLabelsEn?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
+  selectorLabelsZh?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
 }
 
 // ---- Markdown renderer ----
@@ -248,11 +250,15 @@ export default function CascadeSelector({
   scenariosZh,
   extraConfigEn,
   extraConfigZh,
+  selectorLabelsEn,
+  selectorLabelsZh,
 }: CascadeSelectorProps) {
   const { lang, t } = useLang();
   const scenarios = lang === 'zh' ? scenariosZh : scenariosEn;
   const extraConfig =
     lang === 'zh' ? (extraConfigZh ?? extraConfigEn) : (extraConfigEn ?? extraConfigZh);
+  const selectorLabels =
+    lang === 'zh' ? (selectorLabelsZh ?? selectorLabelsEn) : (selectorLabelsEn ?? selectorLabelsZh);
 
   const npus = useMemo(() => {
     const set = new Set<string>();
@@ -374,20 +380,30 @@ export default function CascadeSelector({
   }
 
   const rows: FilterRow[] = [
-    { label: t('labelNpu'), options: npus, selected: selectedNpu, onSelect: setSelectedNpu },
     {
-      label: t('labelPrecision'),
+      label: selectorLabels?.npu ?? t('labelNpu'),
+      options: npus,
+      selected: selectedNpu,
+      onSelect: setSelectedNpu,
+    },
+    {
+      label: selectorLabels?.precision ?? t('labelPrecision'),
       options: precisions,
       selected: effectivePrecision,
       onSelect: setSelectedPrecision,
     },
     {
-      label: t('labelDeployment'),
+      label: selectorLabels?.deployment ?? t('labelDeployment'),
       options: deployments,
       selected: effectiveDeployment,
       onSelect: setSelectedDeployment,
     },
-    { label: t('labelCase'), options: cases, selected: effectiveCase, onSelect: setSelectedCase },
+    {
+      label: selectorLabels?.case ?? t('labelCase'),
+      options: cases,
+      selected: effectiveCase,
+      onSelect: setSelectedCase,
+    },
   ];
 
   return (

@@ -47,7 +47,7 @@ export const translations = {
     sectionEnvSetup: 'Environment Setup',
     sectionScenario: 'Deployment Guide',
     sectionScenarioDescription:
-      'Choose NPU type, precision, and deployment mode below to view the corresponding deployment instructions.',
+      'Choose NPU type and deployment options below to view the corresponding deployment instructions.',
     sectionVerification: 'Verification',
     sectionAccuracy: 'Accuracy',
     sectionBenchmark: 'Benchmark',
@@ -127,7 +127,7 @@ export const translations = {
     sectionPrerequisites: '前置条件',
     sectionEnvSetup: '环境准备',
     sectionScenario: '部署指南',
-    sectionScenarioDescription: '选择 NPU 型号、精度和部署模式，查看对应的部署命令。',
+    sectionScenarioDescription: '选择 NPU 型号和部署选项，查看对应的部署命令。',
     sectionVerification: '功能验证',
     sectionAccuracy: '精度',
     sectionBenchmark: '性能测试',

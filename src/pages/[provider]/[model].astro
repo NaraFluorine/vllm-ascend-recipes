@@ -313,7 +313,7 @@ addToc('reference', 'sectionMoreInfo');
         <section class="py-8" id="scenarios">
           <h2 class={sectionTitle} data-i18n="sectionScenario">Deployment Guide</h2>
           <p class="text-xs text-ink-500 mb-6 font-mono" data-i18n="sectionScenarioDescription">
-            Select NPU type, precision, and deployment mode to view the corresponding deployment
+            Select NPU type and deployment options to view the corresponding deployment
             instructions.
           </p>
           <CascadeSelector
@@ -322,6 +322,8 @@ addToc('reference', 'sectionMoreInfo');
             scenariosZh={modelZh.scenarios}
             extraConfigEn={modelEn.extra_config}
             extraConfigZh={modelZh.extra_config ?? modelEn.extra_config}
+            selectorLabelsEn={modelEn.scenario_selector_labels}
+            selectorLabelsZh={modelZh.scenario_selector_labels ?? modelEn.scenario_selector_labels}
           />
         </section>
 
