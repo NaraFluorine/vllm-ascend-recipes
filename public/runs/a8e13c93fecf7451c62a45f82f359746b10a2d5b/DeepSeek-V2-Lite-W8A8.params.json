@@ -1,0 +1,11 @@
+{
+  "recipe_path": "models/en/DeepSeek/DeepSeek-V2-Lite-W8A8.yaml",
+  "model_id": "",
+  "hw_key": "atlas_800_a2",
+  "head_sha": "a8e13c93fecf7451c62a45f82f359746b10a2d5b",
+  "trigger_type": "nightly",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1",
+  "started_at": "2026-08-10T17:54:46Z",
+  "scenarios": [],
+  "skip_reason": "镜像未预装该权重 (model_id=vllm-ascend/DeepSeek-V2-Lite-W8A8, 目录=vllm-ascend/DeepSeek-V2-Lite-W8A8, 已尝试 ['Eco-Tech', 'models'])"
+}
