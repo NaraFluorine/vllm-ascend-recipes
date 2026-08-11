@@ -84,8 +84,26 @@ export interface Scenario {
   precision: string;
   deployment: string;
   case: string;
+  tags?: string[];
+  strategy?: string;
   steps: ScenarioStep[];
   default_configs?: string[];
+}
+
+export interface ConfigParam {
+  default?: unknown;
+  type?: 'number' | 'string' | 'bool';
+  description?: string;
+  flag?: string;
+  flag_when_false?: string;
+}
+
+export interface FeatureMeta {
+  label?: string;
+  description?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  flag_when_false?: string;
 }
 
 export interface PerformanceSection {
@@ -115,6 +133,9 @@ export interface Model {
   scenarios: Scenario[];
   extra_config?: ExtraConfigItem[];
   scenario_selector_labels?: ScenarioSelectorLabels;
+  config_params?: Record<string, ConfigParam>;
+  features?: Record<string, FeatureMeta>;
+  opt_in_features?: string[];
   performance?: PerformanceSection;
   evaluation?: Evaluation;
   verification?: string;

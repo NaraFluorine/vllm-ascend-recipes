@@ -18,8 +18,25 @@ interface Scenario {
   precision: string;
   deployment: string;
   case: string;
+  tags?: string[];
   steps: ScenarioStep[];
   default_configs?: string[];
+}
+
+interface ConfigParam {
+  default?: unknown;
+  type?: 'number' | 'string' | 'bool';
+  description?: string;
+  flag?: string;
+  flag_when_false?: string;
+}
+
+interface FeatureMeta {
+  label?: string;
+  description?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  flag_when_false?: string;
 }
 
 interface CascadeSelectorProps {
@@ -27,8 +44,66 @@ interface CascadeSelectorProps {
   scenariosZh: Scenario[];
   extraConfigEn?: ExtraConfigItem[];
   extraConfigZh?: ExtraConfigItem[];
+  configParamsEn?: Record<string, ConfigParam>;
+  configParamsZh?: Record<string, ConfigParam>;
+  featuresEn?: Record<string, FeatureMeta>;
+  featuresZh?: Record<string, FeatureMeta>;
+  optInFeaturesEn?: string[];
+  optInFeaturesZh?: string[];
   selectorLabelsEn?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
   selectorLabelsZh?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
+}
+
+// Pipeline-routing tag -> display name (per language)
+const PIPELINE_LABELS: Record<string, Record<string, string>> = {
+  zh: {
+    'a2-single': 'A2 单机流水线',
+    'a3-single': 'A3 单机流水线',
+    'pd-multinode': '多机 PD 流水线',
+  },
+  en: {
+    'a2-single': 'A2 Single-Node Pipeline',
+    'a3-single': 'A3 Single-Node Pipeline',
+    'pd-multinode': 'Multi-Node PD Pipeline',
+  },
+};
+
+// Quote an argv token for the shell line (JSON/spacey args from features).
+function renderArg(a: string): string {
+  return /[\s{}]/.test(a) && !/^['"]/.test(a) ? `'${a}'` : a;
+}
+
+// Render an upstream-style feature toggle to shell text.
+function renderFeature(f: FeatureMeta, on: boolean): string {
+  if (!on) return f.flag_when_false ?? '';
+  const parts: string[] = [];
+  if (f.args && f.args.length) parts.push(f.args.map(renderArg).join(' '));
+  if (f.env) {
+    for (const [k, v] of Object.entries(f.env)) parts.push(`export ${k}=${v}`);
+  }
+  return parts.join('\n');
+}
+
+// Substitute {{name}}:
+//   feature toggle -> renderFeature (args/env or flag_when_false), colored
+//   config value  -> render the value
+function applyConfigParams(
+  content: string,
+  params: Record<string, unknown>,
+  toggleFeatures: Record<string, FeatureMeta>,
+): string {
+  return content.replace(/\{\{(\w+)\}\}/g, (_, name) => {
+    const value = params[name];
+    const feat = toggleFeatures[name];
+    if (feat) {
+      const text = renderFeature(feat, !!value);
+      // Wrap in %%HL%% markers so the rendered command shows the flag in the
+      // same color as its Config chip (stripped by stripRenderMarkers for the
+      // copy button and by renderMarkdown's SSR pass).
+      return text ? `%%HL:${name}%%${text}%%/HL:${name}%%` : '';
+    }
+    return String(value ?? '');
+  });
 }
 
 // ---- Markdown renderer ----
@@ -189,10 +264,25 @@ const CONFIG_COLORS: Record<string, string> = {
   'prefix-caching': 'text-emerald-400',
   'async-scheduling': 'text-sky-400',
   flashcomm1: 'text-rose-400',
-  'npugraph-ex': 'text-violet-400',
-  'cpu-binding': 'text-cyan-400',
+  prefix_caching: 'text-emerald-400',
+  speculative_config: 'text-amber-400',
+  spec_decoding: 'text-amber-400',
+  compilation_config: 'text-lime-400',
+  async_scheduling: 'text-sky-400',
+  npugraph_ex: 'text-violet-400',
+  cpu_binding: 'text-cyan-400',
   'dsa-cp': 'text-orange-400',
-  'multistream-overlap': 'text-pink-400',
+  multistream_overlap: 'text-pink-400',
+};
+
+// Friendly labels for config_param bool toggles (shown on the chip itself).
+const CONFIG_LABELS: Record<string, string> = {
+  prefix_caching: 'Prefix Caching',
+  speculative_config: 'Speculative Config',
+  spec_decoding: 'MTP Spec Decoding',
+  compilation_config: 'Compilation Config',
+  async_scheduling: 'Async Scheduling',
+  flashcomm1: 'FlashComm1',
 };
 
 // ---- Config placeholder replacer ----
@@ -250,6 +340,12 @@ export default function CascadeSelector({
   scenariosZh,
   extraConfigEn,
   extraConfigZh,
+  configParamsEn,
+  configParamsZh,
+  featuresEn,
+  featuresZh,
+  optInFeaturesEn,
+  optInFeaturesZh,
   selectorLabelsEn,
   selectorLabelsZh,
 }: CascadeSelectorProps) {
@@ -259,6 +355,41 @@ export default function CascadeSelector({
     lang === 'zh' ? (extraConfigZh ?? extraConfigEn) : (extraConfigEn ?? extraConfigZh);
   const selectorLabels =
     lang === 'zh' ? (selectorLabelsZh ?? selectorLabelsEn) : (selectorLabelsEn ?? selectorLabelsZh);
+  const configParams =
+    lang === 'zh' ? (configParamsZh ?? configParamsEn) : (configParamsEn ?? configParamsZh);
+  const features = lang === 'zh' ? (featuresZh ?? featuresEn) : (featuresEn ?? featuresZh);
+  const optInFeatures =
+    lang === 'zh' ? (optInFeaturesZh ?? optInFeaturesEn) : (optInFeaturesEn ?? optInFeaturesZh);
+  // Config-panel toggles = features referenced by the recipe steps
+  // ({{name}} placeholders or %%CONFIG%% markers). Default state comes from
+  // upstream opt_in_features (absent = default-on).
+  const referencedKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of scenarios) {
+      for (const st of s.steps) {
+        for (const m of st.content.matchAll(/\{\{(\w+)\}\}/g)) set.add(m[1]);
+        for (const m of st.content.matchAll(/%%CONFIG:([\w-]+)%%/g)) set.add(m[1]);
+      }
+    }
+    return set;
+  }, [scenarios]);
+  const toggleFeatures = useMemo(() => {
+    const out: Record<string, FeatureMeta> = {};
+    for (const [key, f] of Object.entries(features ?? {})) {
+      if (referencedKeys.has(key)) out[key] = f;
+    }
+    return out;
+  }, [features, referencedKeys]);
+  const [paramValues, setParamValues] = useState<Record<string, unknown>>(() => {
+    const init: Record<string, unknown> = {};
+    for (const [key, p] of Object.entries(configParams ?? {})) {
+      init[key] = p.default;
+    }
+    for (const key of Object.keys(toggleFeatures)) {
+      init[key] = !(optInFeatures ?? []).includes(key);
+    }
+    return init;
+  });
 
   const npus = useMemo(() => {
     const set = new Set<string>();
@@ -358,16 +489,32 @@ export default function CascadeSelector({
   // Resolve rendered content for current step (hooks must run before any
   // early return to keep call order stable across renders)
   const currentStep = currentScenario?.steps[activeStep];
+  // Effective %%CONFIG%% selection = legacy extra_config chips (dsa-cp) plus
+  // any feature toggle whose key appears in the step's %%CONFIG%% markers
+  // (cpu_binding / multistream_overlap / npugraph_ex are feature-driven).
+  const effectiveConfigs = useMemo(() => {
+    const merged = new Set(selectedConfigs);
+    for (const key of Object.keys(toggleFeatures)) {
+      if (paramValues[key]) merged.add(key);
+      else merged.delete(key);
+    }
+    return merged;
+  }, [selectedConfigs, paramValues, toggleFeatures]);
+
   const rawContent = useMemo(() => {
     if (!currentStep) return '';
-    return applyConfigReplace(currentStep.content, selectedConfigs, currentStep.config_values);
-  }, [currentStep, selectedConfigs]);
+    return applyConfigReplace(
+      applyConfigParams(currentStep.content, paramValues, toggleFeatures),
+      effectiveConfigs,
+      currentStep.config_values,
+    );
+  }, [currentStep, effectiveConfigs, paramValues, toggleFeatures]);
 
   const renderedHtml = useMemo(() => {
     if (!rawContent) return '';
     const mdHtml = renderMarkdown(rawContent);
-    return applyColorHighlights(mdHtml, selectedConfigs);
-  }, [rawContent, selectedConfigs]);
+    return applyColorHighlights(mdHtml, effectiveConfigs);
+  }, [rawContent, effectiveConfigs]);
 
   if (npus.length === 0) return null;
 
@@ -432,38 +579,86 @@ export default function CascadeSelector({
           </div>
         ))}
 
-        {/* More Config — multi-select, synced with scenario defaults */}
-        {extraConfig && extraConfig.length > 0 && (
+        {/* Config — configurable params (values/toggles) + legacy chips */}
+        {(configParams && Object.keys(configParams).length > 0) ||
+        Object.keys(toggleFeatures).length > 0 ||
+        (extraConfig && extraConfig.length > 0) ? (
           <div className="flex items-start gap-4 px-4 py-3 border-t border-ink-800/40">
-            <span className="shrink-0 w-24 pt-0.5 text-xs font-mono text-ink-300">
-              {t('labelMoreConfig')}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {extraConfig.map((cfg) => {
-                const isSelected = selectedConfigs.has(cfg.key);
-                const colorClass = CONFIG_COLORS[cfg.key] || 'text-ink-400';
+            <span className="shrink-0 w-24 pt-0.5 text-xs font-mono text-ink-300">Config</span>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {/* Value params — editable inputs (defaults = tutorial) */}
+              {configParams &&
+                Object.entries(configParams).map(([key, p]) =>
+                  p.type === 'bool' ? null : (
+                    <div key={key} className="flex items-center gap-2" title={p.description}>
+                      <label className="text-xs font-mono text-ink-400">{key}</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={String(paramValues[key] ?? '')}
+                        onChange={(e) =>
+                          setParamValues((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === '' ? '' : Number(e.target.value),
+                          }))
+                        }
+                        className="w-24 rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs font-mono text-ink-200"
+                      />
+                    </div>
+                  ),
+                )}
+
+              {/* Feature toggles — colored-dot chips (upstream features; label/args/env) */}
+              {Object.entries(toggleFeatures).map(([key, f]) => {
+                const isOn = !!paramValues[key];
+                const colorClass = CONFIG_COLORS[key] || 'text-ink-400';
                 const bgClass = colorClass.replace('text-', 'bg-');
                 return (
                   <button
-                    key={cfg.key}
-                    onClick={() => toggleConfig(cfg.key)}
-                    title={cfg.label}
+                    key={key}
+                    onClick={() => setParamValues((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    title={f.description}
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                      isSelected
+                      isOn
                         ? `${colorClass} bg-accent-500/10 border border-current/30`
                         : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
                     }`}
                   >
                     <span
-                      className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isSelected ? 'opacity-100' : 'opacity-30'}`}
+                      className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isOn ? 'opacity-100' : 'opacity-30'}`}
                     ></span>
-                    {cfg.label}
+                    {f.label || CONFIG_LABELS[key] || key}
                   </button>
                 );
               })}
+
+              {/* Legacy multi-select chips (dsa-cp — no upstream feature yet) */}
+              {extraConfig &&
+                extraConfig.map((cfg) => {
+                  const isSelected = selectedConfigs.has(cfg.key);
+                  const colorClass = CONFIG_COLORS[cfg.key] || 'text-ink-400';
+                  const bgClass = colorClass.replace('text-', 'bg-');
+                  return (
+                    <button
+                      key={cfg.key}
+                      onClick={() => toggleConfig(cfg.key)}
+                      title={cfg.label}
+                      className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                        isSelected
+                          ? `${colorClass} bg-accent-500/10 border border-current/30`
+                          : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isSelected ? 'opacity-100' : 'opacity-30'}`}
+                      ></span>
+                      {cfg.label}
+                    </button>
+                  );
+                })}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Result panel */}
@@ -471,6 +666,11 @@ export default function CascadeSelector({
         <div className="rounded-lg border border-ink-800/60 overflow-hidden">
           {/* Step tabs header */}
           <div className="flex items-center border-b border-ink-800/60 bg-ink-900/70">
+            {currentScenario.tags && currentScenario.tags.length > 0 && (
+              <span className="shrink-0 px-3 text-[10px] font-mono font-bold text-accent-400 uppercase tracking-wider">
+                {currentScenario.tags.map((tag) => PIPELINE_LABELS[lang]?.[tag] || tag).join(' · ')}
+              </span>
+            )}
             <span className="shrink-0 px-3 text-[10px] font-mono font-bold text-ink-300 uppercase tracking-wider">
               {t('step') || 'Steps'}
             </span>
