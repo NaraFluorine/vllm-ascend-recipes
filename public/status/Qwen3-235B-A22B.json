@@ -18,22 +18,5 @@
     "pr_title": null,
     "pr_author": null
   },
-  "last_nightly_run": {
-    "kind": "nightly",
-    "status": "skip",
-    "reason": "atlas_800_a2: unsupported",
-    "head_sha": "0ce30b38b05c7c4c071deb1277d354fc490044ec",
-    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/0ce30b38b05c7c4c071deb1277d354fc490044ec",
-    "workflow_run_id": null,
-    "workflow_run_url": null,
-    "recipe_path": "models/en/Qwen/Qwen3-235B-A22B.yaml",
-    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/0ce30b38b05c7c4c071deb1277d354fc490044ec/models/en/Qwen/Qwen3-235B-A22B.yaml",
-    "params_url": null,
-    "started_at": null,
-    "finished_at": null,
-    "pr_number": null,
-    "pr_url": null,
-    "pr_title": null,
-    "pr_author": null
-  }
+  "last_nightly_run": null
 }
