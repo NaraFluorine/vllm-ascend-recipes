@@ -18,5 +18,22 @@
     "pr_title": null,
     "pr_author": null
   },
-  "last_nightly_run": null
+  "last_nightly_run": {
+    "kind": "nightly",
+    "status": "skip",
+    "conclusion": "success",
+    "head_sha": "06f5d5718898cf8e80b228759eef39d8de702bea",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/06f5d5718898cf8e80b228759eef39d8de702bea",
+    "workflow_run_id": 31733623696,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/31733623696",
+    "recipe_path": "models/en/Qwen/Qwen3-235B-A22B.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/06f5d5718898cf8e80b228759eef39d8de702bea/models/en/Qwen/Qwen3-235B-A22B.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/06f5d5718898cf8e80b228759eef39d8de702bea/Qwen3-235B-A22B.params.json",
+    "started_at": "2026-08-13T07:37:06Z",
+    "finished_at": "2026-08-13T19:29:00Z",
+    "pr_number": 49,
+    "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/49",
+    "pr_title": "fix(recipe+site): re-land page QA for Qwen3.5/3.6 + prerequisites weight links",
+    "pr_author": "chaosv598"
+  }
 }
