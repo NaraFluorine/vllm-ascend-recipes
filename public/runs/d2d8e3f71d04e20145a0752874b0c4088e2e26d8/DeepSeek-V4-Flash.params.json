@@ -1,0 +1,11 @@
+{
+  "recipe_path": "models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+  "model_id": "",
+  "hw_key": "atlas_800_a2",
+  "head_sha": "d2d8e3f71d04e20145a0752874b0c4088e2e26d8",
+  "trigger_type": "nightly",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1",
+  "started_at": "2026-08-14T19:20:09Z",
+  "scenarios": [],
+  "skip_reason": "未提前下载权重，请联系maintainer下载权重 (model_id=deepseek-ai/DeepSeek-V4-Flash)"
+}
