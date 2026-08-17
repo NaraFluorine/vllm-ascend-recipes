@@ -19,8 +19,6 @@ meta:
 
 model:
   model_id: "moonshotai/Kimi-K2.6"
-  performance_model_names:
-    - "Kimi-K2.6"
   min_vllm_version: "v0.20.0rc1"
   architecture: moe
   parameter_count: "1T"
@@ -166,6 +164,8 @@ dependencies:
     command: "pip install modelscope"
 
 guide: ""
+performance_model_names:
+  - "Kimi-K2.6"
 
 overview: |-
   Kimi-K2.6 是一个开源的原生多模态智能体模型，基于 Kimi-K2-Base 在约 15 万亿图文混合

@@ -3,7 +3,7 @@ meta:
   slug: "deepseek-v4-flash"
   provider: "DeepSeek"
   description: "DeepSeek V4 MoE model with hybrid CSA+HCA attention, manifold-constrained hyper-connections, and three-tier reasoning (Non-think / Think High / Think Max)."
-  date_added: 2026-07-07
+  date_added: 2026-08-03
   date_updated: 2026-08-03
   difficulty: advanced
   tasks:
@@ -17,8 +17,6 @@ meta:
 
 model:
   model_id: "deepseek-ai/DeepSeek-V4-Flash"
-  performance_model_names:
-    - "DeepSeek-V4-Flash"
   min_vllm_version: "v0.23.0rc1"
   architecture: moe
   parameter_count: "284B"
@@ -161,6 +159,8 @@ dependencies:
     command: "pip install modelscope"
 
 guide: ""
+performance_model_names:
+  - "DeepSeek-V4-Flash"
 # Tutorial content lives in overview / prerequisites / env_setup / scenarios
 # (upstream ignores those); guide kept as an upstream-compatible placeholder.
 # — Configurable VALUE params (page/CI extension; defaults = tutorial baseline).

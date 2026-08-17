@@ -3,7 +3,7 @@ meta:
   slug: "deepseek-v4-flash"
   provider: "DeepSeek"
   description: "DeepSeek V4 MoE 模型，采用混合 CSA+HCA 注意力机制、流形约束超连接，支持三种推理模式（Non-think / Think High / Think Max）。"
-  date_added: 2026-07-07
+  date_added: 2026-08-03
   date_updated: 2026-08-03
   difficulty: advanced
   tasks:
@@ -17,8 +17,6 @@ meta:
 
 model:
   model_id: "deepseek-ai/DeepSeek-V4-Flash"
-  performance_model_names:
-    - "DeepSeek-V4-Flash"
   min_vllm_version: "v0.23.0rc1"
   architecture: moe
   parameter_count: "284B"
@@ -161,6 +159,8 @@ dependencies:
 # 教程正文在 overview / prerequisites / env_setup / scenarios(上游忽略这些字段);
 # guide 仅作为上游兼容占位,保持与 en 一致。
 guide: ""
+performance_model_names:
+  - "DeepSeek-V4-Flash"
 
 # —— 可配置数值参数(页面/CI 扩展;默认值 = tutorial 基线)——
 # 布尔开关统一在 features(上游字段),页面同时渲染两者。

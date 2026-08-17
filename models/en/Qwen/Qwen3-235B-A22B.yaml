@@ -11,14 +11,25 @@ meta:
 
 model:
   model_id: "Qwen/Qwen3-235B-A22B"
-  performance_model_names:
-    - "Qwen3-235B-A22B"
   min_vllm_version: "0.8.4rc2"
   architecture: moe
   parameter_count: "235B"
   active_parameters: "22B"
   context_length: 131072
   modality: text
+
+# Upstream-aligned weight variants (vllm-project/recipes schema). VRAM = minimum to load.
+variants:
+  default:
+    precision: W8A8
+    vram_minimum_gb: 282
+    description: "W8A8 quantized weights - 1x Atlas 800I A2 (64Gx8) or 1x Atlas 800I A3"
+  bf16:
+    model_id: "Qwen/Qwen3-235B-A22B"
+    precision: BF16
+    vram_minimum_gb: 564
+    description: "Full BF16 weights - 1x Atlas 800I A3 (64Gx16), 1x Atlas 800I A2 (64Gx8), or 2x Atlas 800I A2 (32Gx8)"
+
 
 strategy_overrides:
   pd_cluster:
@@ -27,6 +38,18 @@ strategy_overrides:
     decode:
       nodes: { default: 2 }
 
+guide: ""
+performance_model_names:
+  - "Qwen3-235B-A22B"
+config_params:
+  max_model_len:
+    default: 131072
+    type: number
+    description: "Maximum context length (input + output tokens for one request); adjust it according to your actual scenario"
+  yarn_factor:
+    default: 4
+    type: number
+    description: "YaRN scaling factor; 4 extends the original 32K context to about 128K tokens"
 overview: |-
   Qwen3 is the latest generation of large language models in Qwen series, offering a comprehensive suite of dense and mixture-of-experts (MoE) models. Built upon extensive training, Qwen3 delivers groundbreaking advancements in reasoning, instruction-following, agent capabilities, and multilingual support. Qwen3-235B-A22B is the largest MoE variant, featuring 235B total parameters with 22B activated per token.
 weight_download:
@@ -116,13 +139,13 @@ prerequisites:
 
     | Model | Hardware Requirement | Download |
     |-------|---------------------|----------|
-    | Qwen3-235B-A22B (BF16) | 1 Atlas 800I A3 (64G × 16), 1 Atlas 800I A2 (64G × 8)| [Download](https://www.modelscope.cn/models/Qwen/Qwen3-235B-A22B) |
+    | Qwen3-235B-A22B (BF16) | 1 Atlas 800I A3 (64G × 16), 1 Atlas 800I A2 (64G × 8), or 2 Atlas 800I A2 (32G × 8) | [Download](https://www.modelscope.cn/models/Qwen/Qwen3-235B-A22B) |
 
     **Quantized Version (Pre-converted):**
 
     | Model | Quantization | Hardware Requirement | Download |
     |-------|-------------|---------------------|----------|
-    | Qwen3-235B-A22B-W8A8 | W8A8 | 1 Atlas 800I A3 (64G × 16), 1 Atlas 800I A2 (64G × 8)| [Download](https://modelers.cn/models/Modelers_Park/Qwen3-235B-A22B-w8a8) |
+    | Qwen3-235B-A22B-W8A8 | W8A8 | 1 Atlas 800I A3 (64G × 16), 1 Atlas 800I A2 (64G × 8), or 2 Atlas 800I A2 (32G × 8) | [Download](https://modelers.cn/models/Modelers_Park/Qwen3-235B-A22B-w8a8) |
 
     These are the recommended numbers of cards, which can be adjusted according to the actual situation.
 - title: Model Quantization
@@ -257,6 +280,106 @@ env_setup:
       > **Note**: If deploying a multi-node environment, set up the environment on each node.
 scenarios:
 - npu: Atlas 800I A2
+  precision: BF16
+  deployment: Single-Node
+  case: Multi Card
+  steps:
+  - title: Start the server
+    content: |-
+      Use this option when you have one Atlas 800I A2 node with 64G × 8 memory and want to serve the BF16 checkpoint directly. For Atlas 800I A2 nodes with 32G × 8 memory, use a two-node deployment plan.
+
+      ```shell
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export TASK_QUEUE_ENABLE=1
+
+      vllm serve your_bf16_model_path \
+          --host <host_ip> \
+          --port <port> \
+          --tensor-parallel-size 8 \
+          --data-parallel-size 1 \
+          --seed 1024 \
+          --served-model-name qwen3 \
+          --max-num-seqs 32 \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens 8096 \
+          --enable-expert-parallel \
+          --trust-remote-code \
+          --gpu-memory-utilization 0.95 \
+          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":{{yarn_factor}},"original_max_position_embeddings":32768}}' \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"enable_flashcomm1": true}' \
+          --async-scheduling
+      ```
+
+      Key Parameter Descriptions:
+
+      - `--max-model-len` is configurable in the page controls. It specifies the maximum input + output token length for one request.
+      - `--hf-overrides` enables YaRN rope scaling for contexts beyond the original 32K window. Increase `yarn_factor` together with `max_model_len` when you need a longer context.
+      - `--enable-expert-parallel` should stay enabled for this MoE model.
+  - title: Service Verification
+    content: |-
+      If the service starts successfully, the following startup log will be displayed:
+
+      ```text
+      (APIServer pid=<pid>) INFO:     Started server process [<pid>]
+      (APIServer pid=<pid>) INFO:     Waiting for application startup.
+      (APIServer pid=<pid>) INFO:     Application startup complete.
+      ```
+- npu: Atlas 800I A3
+  precision: BF16
+  deployment: Single-Node
+  case: Multi Card
+  steps:
+  - title: Start the server
+    content: |-
+      Use this option when you have one Atlas 800I A3 node with 64G × 16 memory and want to serve the BF16 checkpoint directly.
+
+      ```shell
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export TASK_QUEUE_ENABLE=1
+
+      vllm serve your_bf16_model_path \
+          --host <host_ip> \
+          --port <port> \
+          --tensor-parallel-size 16 \
+          --data-parallel-size 1 \
+          --seed 1024 \
+          --served-model-name qwen3 \
+          --max-num-seqs 32 \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens 8096 \
+          --enable-expert-parallel \
+          --trust-remote-code \
+          --gpu-memory-utilization 0.95 \
+          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":{{yarn_factor}},"original_max_position_embeddings":32768}}' \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"enable_flashcomm1": true}' \
+          --async-scheduling
+      ```
+
+      Key Parameter Descriptions:
+
+      - `--max-model-len` is configurable in the page controls. It specifies the maximum input + output token length for one request.
+      - `--hf-overrides` enables YaRN rope scaling for contexts beyond the original 32K window. Increase `yarn_factor` together with `max_model_len` when you need a longer context.
+      - `--enable-expert-parallel` should stay enabled for this MoE model.
+  - title: Service Verification
+    content: |-
+      If the service starts successfully, the following startup log will be displayed:
+
+      ```text
+      (APIServer pid=<pid>) INFO:     Started server process [<pid>]
+      (APIServer pid=<pid>) INFO:     Waiting for application startup.
+      (APIServer pid=<pid>) INFO:     Application startup complete.
+      ```
+- npu: Atlas 800I A2
   precision: W8A8
   deployment: Single-Node
   case: Multi Card
@@ -284,12 +407,12 @@ scenarios:
           --quantization ascend \
           --served-model-name qwen3 \
           --max-num-seqs 32 \
-          --max-model-len 131072 \
+          --max-model-len {{max_model_len}} \
           --max-num-batched-tokens 8096 \
           --enable-expert-parallel \
           --trust-remote-code \
           --gpu-memory-utilization 0.95 \
-          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":4,"original_max_position_embeddings":32768}}' \
+          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":{{yarn_factor}},"original_max_position_embeddings":32768}}' \
           --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
           --additional-config '{"enable_flashcomm1": true}' \
           --async-scheduling
@@ -334,12 +457,12 @@ scenarios:
           --quantization ascend \
           --served-model-name qwen3 \
           --max-num-seqs 32 \
-          --max-model-len 131072 \
+          --max-model-len {{max_model_len}} \
           --max-num-batched-tokens 8096 \
           --enable-expert-parallel \
           --trust-remote-code \
           --gpu-memory-utilization 0.95 \
-          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":4,"original_max_position_embeddings":32768}}' \
+          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":{{yarn_factor}},"original_max_position_embeddings":32768}}' \
           --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
           --additional-config '{"enable_flashcomm1": true}' \
           --async-scheduling
@@ -699,9 +822,9 @@ scenarios:
 - npu: Atlas 800I A3
   precision: W8A8
   deployment: Single-Node PD Hybrid
-  case: PD Hybrid
+  case: High Throughput
   steps:
-  - title: High Throughput (TP4, DP4)
+  - title: Start the server
     content: |-
       Single-node PD hybrid deployment optimized for maximum throughput on Atlas 800I A3 (64G × 16):
 
@@ -745,7 +868,12 @@ scenarios:
           --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
           --additional-config '{"enable_cpu_binding":true, "enable_flashcomm1": true, "enable_fused_mc2": 1}'
       ```
-  - title: Low Latency (TP16, Eagle3 Speculative Decoding)
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: Single-Node PD Hybrid
+  case: Low Latency
+  steps:
+  - title: Start the server
     content: |-
       Single-node PD hybrid deployment optimized for low latency with speculative decoding (Eagle3):
 
@@ -790,7 +918,12 @@ scenarios:
           --speculative-config '{"method": "eagle3", "model":"your_eagle3_model_path", "num_speculative_tokens": 3}' \
           --additional-config '{"enable_cpu_binding":true, "enable_flashcomm1": true}'
       ```
-  - title: Long Context (TP8, CP2, YaRN)
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: Single-Node PD Hybrid
+  case: Long Context
+  steps:
+  - title: Start the server
     content: |-
       Single-node PD hybrid deployment optimized for long context with Context Parallelism and yarn rope-scaling:
 
@@ -823,13 +956,13 @@ scenarios:
           --enable-expert-parallel \
           --cp-kv-cache-interleave-size 128 \
           --max-num-seqs 32 \
-          --max-model-len 135000 \
+          --max-model-len {{max_model_len}} \
           --max-num-batched-tokens 16384 \
           --gpu-memory-utilization 0.85 \
           --trust-remote-code \
           --quantization ascend \
           --no-enable-prefix-caching \
-          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":4,"original_max_position_embeddings":131072}}' \
+          --hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":{{yarn_factor}},"original_max_position_embeddings":32768}}' \
           --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
           --additional-config '{"enable_cpu_binding":true, "enable_flashcomm1": true, "enable_fused_mc2": 1}'
       ```
@@ -975,7 +1108,7 @@ performance:
     | High Throughput | Single-Node (TP4, DP4) | 16 (A3) | W8A8 | DP and TP distribute MoE experts across 16 NPUs for maximum throughput |
     | High Throughput | PD Disaggregation (3 nodes) | 48 (3×A3) | W8A8 | 3-node PD separation balances prefill and decode resources for high throughput |
     | Low Latency | Single-Node (TP16) | 16 (A3) | W8A8 | 16-NPU TP minimizes per-token latency with speculative decoding |
-    | Long Context | Single-Node (TP8, CP2) | 16 (A3) | W8A8 | 16-NPU TP with Context Parallelism extends context to 135K tokens |
+    | Long Context | Single-Node (TP8, CP2) | 16 (A3) | W8A8 | 16-NPU TP with Context Parallelism extends context according to `max_model_len` and YaRN `yarn_factor` |
 
     > `*Total NPUs` indicates the total number of NPUs used across all nodes.
 
@@ -1000,11 +1133,11 @@ faq: |-
 
   ### Q: What hardware is required for Qwen3-235B-A22B?
 
-  For BF16: 1 Atlas 800I A3 (64G × 16) node, 1 Atlas 800I A2 (64G × 8) node, or 2 Atlas 800I A2 (32G × 8) nodes. For W8A8 quantized version, the hardware requirements are similar.
+  For BF16: 1 Atlas 800I A3 (64G × 16) node, 1 Atlas 800I A2 (64G × 8) node, or 2 Atlas 800I A2 (32G × 8) nodes. For the W8A8 quantized version, the hardware requirements are similar.
 
   ### Q: How do I enable long context beyond 40K?
 
-  Use yarn rope-scaling. For vLLM >= v0.12.0: `--hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":4,"original_max_position_embeddings":32768}}'`. For older versions, use `--rope_scaling`. Model variants like Qwen3-235B-A22B-Instruct-2507 natively support long contexts and don't need this parameter.
+  Select the Long Context case and set `max_model_len` to the input + output length you need. Use YaRN rope scaling through `--hf-overrides '{"rope_parameters": {"rope_type":"yarn","rope_theta":1000000,"factor":<yarn_factor>,"original_max_position_embeddings":32768}}'`; the page exposes `yarn_factor` as a configurable value. For older vLLM versions, use `--rope_scaling`. Model variants like Qwen3-235B-A22B-Instruct-2507 natively support long contexts and do not need this parameter.
 
   ### Q: When should I use PD disaggregation vs single-node deployment?
 

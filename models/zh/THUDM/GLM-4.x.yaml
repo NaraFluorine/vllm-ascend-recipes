@@ -11,10 +11,6 @@ meta:
 
 model:
   model_id: "ZhipuAI/GLM-4.7"
-  performance_model_names:
-    - "GLM-4.5"
-    - "GLM-4.6"
-    - "GLM-4.7"
   min_vllm_version: "0.10.0rc1"
   architecture: moe
   parameter_count: "31B"
@@ -22,6 +18,76 @@ model:
   context_length: 133000
   modality: text
 
+# Upstream-aligned weight variants (vllm-project/recipes schema). VRAM = minimum to load.
+variants:
+  default:
+    precision: W8A8
+    vram_minimum_gb: 426
+    description: "W8A8 量化权重（GLM-4.7-W8A8-floatmtp 含 MTP 头）—— 1 台 Atlas 800I A2（64G×8）或 1 台 Atlas 800I A3"
+  bf16:
+    model_id: "ZhipuAI/GLM-4.7"
+    precision: BF16
+    vram_minimum_gb: 852
+    description: "BF16 全精度权重 —— 1 台 Atlas 800I A3（64G×16）"
+
+features:
+  expert_parallel:
+    description: "跨 DP rank 的 MoE 专家并行"
+    args: ["--enable-expert-parallel"]
+  spec_decoding:
+    label: "MTP Spec Decoding"
+    description: "配置 MTP（多 Token 预测）投机解码以加速推理"
+    args: ["--speculative-config", '{"num_speculative_tokens": 3, "method": "mtp"}']
+  compilation_config:
+    label: "Compilation Config"
+    description: "decode 阶段全 ACL 图执行，降低调度时延"
+    args: ["--compilation-config", '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}']
+  tool_calling:
+    label: "Tool Calling"
+    description: "GLM-4.7 函数调用解析器"
+    args: ["--enable-auto-tool-choice", "--tool-call-parser", "glm47"]
+  reasoning:
+    label: "Reasoning Parser"
+    description: "GLM-4.x 推理解析器"
+    args: ["--reasoning-parser", "glm45"]
+  topk_optimize:
+    label: "TopK Optimize"
+    description: "GLM-4.x 推荐开启的 TopK 优化"
+    env:
+      VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE: "1"
+  balance_scheduling:
+    label: "Balance Scheduling"
+    description: "昇腾均衡调度优化"
+    env:
+      VLLM_ASCEND_BALANCE_SCHEDULING: "1"
+
+extra_config:
+- key: fusion_ops_gmmswigluquant
+  label: "fusion_ops_gmmswigluquant=false"
+
+config_params:
+  max_model_len:
+    default: 133000
+    type: number
+    description: "最大上下文长度（输入 + 输出 token 之和），需要根据实际场景设置"
+  max_num_seqs:
+    default: 16
+    type: number
+    description: "最大并发序列数；长上下文低并发场景建议不超过 4"
+  max_num_batched_tokens:
+    default: 8192
+    type: number
+    description: "每轮调度允许的最大 batch token 数"
+  gpu_memory_utilization:
+    default: 0.9
+    type: number
+    description: "KV cache 可用的显存比例"
+
+guide: ""
+performance_model_names:
+  - "GLM-4.5"
+  - "GLM-4.6"
+  - "GLM-4.7"
 overview: |-
   GLM-4.x（GLM-4.5/4.6/4.7）是智谱 AI（THUDM）推出的混合专家（MoE）基础模型，专为智能体应用设计。
 weight_download:
@@ -248,11 +314,22 @@ scenarios:
 - npu: Atlas 800I A3
   precision: W8A8
   deployment: 单节点-多卡
-  case: 多卡
+  case: 长上下文高并发（>4）
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "数据并行大小；长上下文高并发、低延迟和高吞吐短序列推荐 dp2"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "张量并行大小；长上下文高并发、低延迟和高吞吐短序列推荐 tp8"
   steps:
   - title: 启动服务
     content: |-
-      GLM-4.7 W8A8 量化模型在 Atlas 800I A3 上的单节点部署。
+      GLM-4.7 W8A8 量化模型在 Atlas 800I A3 上的单节点部署。该选项适用于长上下文高并发（>4）场景，推荐 `dp2 tp8`。
 
       ```bash
       export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -267,17 +344,17 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 133000 \
-          --max-num-batched-tokens 8192 \
-          --data-parallel-size 2 \
-          --tensor-parallel-size 8 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.9 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -285,7 +362,8 @@ scenarios:
       > - `--quantization ascend`：W8A8 量化模型必需。使用 BF16 权重时请移除此参数。
       > - `--speculative-config`：配置 MTP 投机解码以加速推理。
       > - `fusion_ops_gmmswigluquant`：当 NPU 总数 <= 16 时应设为 `false`，以避免性能下降。
-      > - 长上下文低并发（<=4）场景推荐 `dp1 tp16`；高并发（>4）场景推荐 `dp2 tp8`。
+      > - 长上下文低并发（<=4）场景推荐 `dp1 tp16`；长上下文高并发（>4）、低延迟短序列和高吞吐短序列推荐 `dp2 tp8`。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
 
       参数详情请参考：
 
@@ -295,10 +373,182 @@ scenarios:
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 单节点-多卡
+  case: 长上下文低并发（<=4）
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    max_num_seqs:
+      default: 4
+      type: number
+      description: "低并发长序列建议 <=4，以优先保障 KV cache 容量"
+    data_parallel_size:
+      default: 1
+      type: number
+      description: "长上下文低并发推荐 dp1"
+    tensor_parallel_size:
+      default: 16
+      type: number
+      description: "长上下文低并发推荐 tp16"
+  steps:
+  - title: 启动服务
+    content: |-
+      GLM-4.7 W8A8 量化模型在 Atlas 800I A3 上的长上下文低并发部署，推荐 `dp1 tp16`。
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - `--quantization ascend`：W8A8 量化模型必需。使用 BF16 权重时请移除此参数。
+      > - `--speculative-config`：配置 MTP 投机解码以加速推理。
+      > - `fusion_ops_gmmswigluquant`：当 NPU 总数 <= 16 时应设为 `false`，以避免性能下降。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
+  - title: 服务验证
+    content: |-
+      服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 单节点-多卡
+  case: 低延迟短序列
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "低延迟短序列推荐 dp2"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "低延迟短序列推荐 tp8"
+  steps:
+  - title: 启动服务
+    content: |-
+      GLM-4.7 W8A8 量化模型在 Atlas 800I A3 上的低延迟短序列部署，推荐 `dp2 tp8`。
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - 低延迟短序列推荐 `dp2 tp8`。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
+  - title: 服务验证
+    content: |-
+      服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: 单节点-多卡
+  case: 高吞吐短序列
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "高吞吐短序列推荐 dp2"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "高吞吐短序列推荐 tp8"
+  steps:
+  - title: 启动服务
+    content: |-
+      GLM-4.7 W8A8 量化模型在 Atlas 800I A3 上的高吞吐短序列部署，推荐 `dp2 tp8`。
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - 高吞吐短序列推荐 `dp2 tp8`。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
+  - title: 服务验证
+    content: |-
+      服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
 - npu: Atlas 800I A2
   precision: W8A8
   deployment: 单节点-多卡
   case: 多卡
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "A2 单节点默认使用 tp8 覆盖 8 个 NPU"
   steps:
   - title: 启动服务
     content: |-
@@ -317,21 +567,25 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 133000 \
-          --max-num-batched-tokens 8192 \
-          --tensor-parallel-size 8 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.9 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
 
       > - A2 有 8 个 NPU，`--tensor-parallel-size 8` 使用所有可用 NPU。
+      > - `--quantization ascend`：W8A8 量化模型必需。使用 BF16 权重时请移除此参数。
+      > - `--speculative-config`：配置 MTP 投机解码以加速推理。
+      > - `fusion_ops_gmmswigluquant`：当 NPU 总数 <= 16 时应设为 `false`，以避免性能下降。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。
@@ -339,6 +593,17 @@ scenarios:
   precision: BF16
   deployment: 多节点
   case: 多节点
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    max_model_len:
+      default: 140000
+      type: number
+      description: "BF16 多节点示例默认上下文长度；请按实际输入输出长度调整"
+    tensor_parallel_size:
+      default: 16
+      type: number
+      description: "BF16 多节点示例默认 tp16"
   steps:
   - title: 启动服务
     content: |-
@@ -363,23 +628,20 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 140000 \
-          --max-num-batched-tokens 8192 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
           --data-parallel-size 2 \
           --data-parallel-size-local 1 \
           --data-parallel-start-rank 0 \
           --data-parallel-address <node0_ip> \
           --data-parallel-rpc-port 13389 \
-          --tensor-parallel-size 16 \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
-          --gpu-memory-utilization 0.9 \
-          --enable-auto-tool-choice \
-          --tool-call-parser glm47 \
-          --reasoning-parser glm45 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -403,24 +665,21 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 140000 \
-          --max-num-batched-tokens 8192 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
           --data-parallel-size 2 \
           --data-parallel-size-local 1 \
           --data-parallel-start-rank 1 \
           --data-parallel-address <node0_ip> \
           --data-parallel-rpc-port 13389 \
-          --tensor-parallel-size 16 \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --headless \
-          --gpu-memory-utilization 0.9 \
-          --enable-auto-tool-choice \
-          --tool-call-parser glm47 \
-          --reasoning-parser glm45 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -428,6 +687,8 @@ scenarios:
       > - 将 `<node0_ip>` 和 `<node1_ip>` 替换为实际的节点 IP 地址。
       > - 将 `<nic_name>` 替换为实际的网络接口名称。
       > - 节点 1 需要 `--headless` 和 `--data-parallel-start-rank 1`。
+      > - 使用 BF16 权重时无需 `--quantization ascend`。
+      > - `max-model-len` 和 `max-num-seqs` 需要根据实际使用场景设置。
   - title: 服务验证
     content: |-
       服务启动后，通过发送提示词验证服务是否正常运行。请参考下方的验证示例。

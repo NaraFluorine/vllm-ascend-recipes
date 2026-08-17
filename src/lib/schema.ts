@@ -105,6 +105,16 @@ export const extraConfigItemSchema = z.object({
   label: z.string(),
 });
 
+// Configurable parameters whose defaults come from the tutorial baseline.
+// Value params substitute {{name}}; boolean params render flag / flag_when_false.
+export const configParamSchema = z.object({
+  default: z.any(),
+  type: z.enum(['number', 'string', 'bool']).optional(),
+  description: z.string().optional(),
+  flag: z.string().optional(),
+  flag_when_false: z.string().optional(),
+});
+
 export const scenarioSelectorLabelsSchema = z.object({
   npu: z.string().optional(),
   precision: z.string().optional(),
@@ -124,16 +134,7 @@ export const scenarioSchema = z.object({
   strategy: z.string().optional(),
   steps: z.array(scenarioStepSchema),
   default_configs: z.array(z.string()).optional(),
-});
-
-// Configurable parameters whose defaults come from the tutorial baseline.
-// Value params substitute {{name}}; boolean params render flag / flag_when_false.
-export const configParamSchema = z.object({
-  default: z.any(),
-  type: z.enum(['number', 'string', 'bool']).optional(),
-  description: z.string().optional(),
-  flag: z.string().optional(),
-  flag_when_false: z.string().optional(),
+  config_params: z.record(z.string(), configParamSchema).optional(),
 });
 
 // ========== References ==========
@@ -182,6 +183,7 @@ export const modelSchema = z.object({
   dependencies: z.array(z.any()).optional(),
   // Upstream tutorial body (vllm-project/recipes `guide` field).
   guide: z.string().optional(),
+  performance_model_names: z.array(z.string().trim().min(1)).min(1).optional(),
   guide_zh: z.string().optional(),
   // Configurable parameters with tutorial defaults.
   config_params: z.record(z.string(), configParamSchema).optional(),

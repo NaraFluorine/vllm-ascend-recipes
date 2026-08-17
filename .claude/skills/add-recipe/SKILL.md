@@ -67,6 +67,11 @@ opt_in_features: [prefix_caching]   # default OFF; features absent here default 
 
 Every feature needs `args` or `env`. `flag_when_false` (page extension) is the text rendered when the toggle is OFF.
 
+Feature chips on the page pick their behavior from the step content automatically:
+- referenced by a `{{key}}` placeholder or `%%CONFIG:key%%` marker → toggle chip (on/off both render, `opt_in_features` decides the default);
+- flags already hardcoded in every step's command → always-on chip ("included in the baseline");
+- never referenced and never hardcoded → default-OFF toggle; enabling appends the feature's `args` (or `env` exports) to the rendered `vllm serve` command.
+
 ### `variants` / `compatible_strategies`
 
 ```yaml

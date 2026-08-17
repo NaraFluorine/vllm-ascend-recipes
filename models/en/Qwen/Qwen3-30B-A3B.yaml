@@ -4,8 +4,8 @@ meta:
   provider: "Qwen"
   description: "A Mixture-of-Experts (MoE) model in the Qwen3 series, featuring 30.5B total parameters with 3.3B activated per token. The sparse MoE architecture enables efficient training and inference, delivering strong performance across reasoning, instruction-following, and agent capabilities while maintaining lower computational cost."
   date_added: 2026-07-07
-  performance_headline: "Single-node deployment on Atlas 800 A2/A3 with W8A8 precision"
-  date_updated: 2026-07-07
+  performance_headline: "Single-node deployment on Atlas 800 A2/A3 with BF16 and W8A8 precision"
+  date_updated: 2026-08-17
   difficulty: intermediate
   related_recipes:
     - "Qwen/Qwen3.6-27B"
@@ -16,8 +16,6 @@ meta:
 
 model:
   model_id: "Qwen/Qwen3-30B-A3B"
-  performance_model_names:
-    - "Qwen3-30B-A3B"
   min_vllm_version: "0.8.4rc2"
   architecture: moe
   parameter_count: "30.5B"
@@ -112,6 +110,8 @@ dependencies:
     command: "pip install modelscope && modelscope download --model AngelSlim/Qwen3-a3B_eagle3"
 
 guide: ""
+performance_model_names:
+  - "Qwen3-30B-A3B"
 
 # —— Configurable value params (page/CI extension; defaults = tutorial baseline) ——
 config_params:
@@ -178,6 +178,24 @@ weight_download:
   - source: GitCode
     url: ''
     command: ''
+- weight_version: W8A8 QuaRot-310 (Atlas 300I DUO)
+  sources:
+  - source: ModelScope
+    url: https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8-QuaRot-310
+    command: |-
+      ```bash
+      pip install modelscope
+      modelscope download --model Eco-Tech/Qwen3-30B-A3B-w8a8-QuaRot-310
+      ```
+  - source: HuggingFace
+    url: ''
+    command: ''
+  - source: Modelers
+    url: ''
+    command: ''
+  - source: GitCode
+    url: ''
+    command: ''
 - weight_version: Eagle3 Draft Model
   sources:
   - source: HuggingFace
@@ -213,9 +231,15 @@ prerequisites:
 
     | Model                | Hardware Requirement                                                                             | Download                                                                 |
     | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-    | Qwen3-30B-A3B (BF16) | Atlas 800I A3 (64G, 1~2 cards)<br>Atlas 800I A2 (64G, 2~4 cards) | [Download](https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B)          |
-    | Qwen3-30B-A3B-W8A8   | Atlas 800I A3 (64G, 1~2 cards)<br>Atlas 800I A2 (64G, 2~4 cards)                               | [Download](https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8) |
+    | Qwen3-30B-A3B (BF16) | Atlas 800I A3 (64GB, 1~2 cards)<br>Atlas 800I A2 (64GB, 2~4 cards) | [Download](https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B)          |
+    | Qwen3-30B-A3B-W8A8   | Atlas 800I A3 (64GB, 1~2 cards)<br>Atlas 800I A2 (64GB, 2~4 cards)                               | [Download](https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8) |
     | Eagle3 Draft Model   | NA                                                                                               | [Download](https://huggingface.co/AngelSlim/Qwen3-a3B_eagle3)            |
+
+    **Quantized version for Atlas 300I DUO:**
+
+    | Model                               | Quantization | Hardware Requirement   | Download                                                                     |
+    | ----------------------------------- | ------------ | ---------------------- | ---------------------------------------------------------------------------- |
+    | Qwen3-30B-A3B-w8a8-QuaRot-310       | W8A8         | Atlas 300I DUO (TP2)   | [Download](https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8-QuaRot-310) |
 
     These are the recommended numbers of cards, which can be adjusted according to the actual situation.
 - title: Model Quantization
@@ -876,6 +900,8 @@ references:
   url: https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B
 - title: ModelScope Model Download (W8A8)
   url: https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8
+- title: ModelScope Model Download (W8A8 QuaRot-310)
+  url: https://www.modelscope.cn/models/Eco-Tech/Qwen3-30B-A3B-w8a8-QuaRot-310
 - title: Eagle3 Draft Model
   url: https://huggingface.co/AngelSlim/Qwen3-a3B_eagle3
 - title: vllm-ascend GitHub

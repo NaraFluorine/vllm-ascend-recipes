@@ -88,6 +88,7 @@ export interface Scenario {
   strategy?: string;
   steps: ScenarioStep[];
   default_configs?: string[];
+  config_params?: Record<string, ConfigParam>;
 }
 
 export interface ConfigParam {
@@ -104,6 +105,15 @@ export interface FeatureMeta {
   args?: string[];
   env?: Record<string, string>;
   flag_when_false?: string;
+}
+
+// Upstream-aligned weight variant (vllm-project/recipes `variants:` block).
+export interface Variant {
+  model_id?: string;
+  precision?: string;
+  vram_minimum_gb?: number;
+  description?: string;
+  [key: string]: unknown;
 }
 
 export interface PerformanceSection {
@@ -154,6 +164,7 @@ export interface Model {
   config_params?: Record<string, ConfigParam>;
   features?: Record<string, FeatureMeta>;
   opt_in_features?: string[];
+  variants?: Record<string, Variant>;
   strategy_overrides?: StrategyOverrides;
   performance?: PerformanceSection;
   evaluation?: Evaluation;
@@ -161,6 +172,7 @@ export interface Model {
   tuning?: string;
   faq?: string;
   references: Reference[];
+  performance_model_names?: string[];
 
   _provider_slug: string;
   _model_slug: string;
