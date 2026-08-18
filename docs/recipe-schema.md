@@ -10,7 +10,7 @@
 一个 recipe 由两类字段组成:
 
 1. **上游对齐字段**(vllm-project/recipes 兼容):meta / model / features / opt_in_features / variants / compatible_strategies / hardware_overrides / strategy_overrides / dependencies / guide。上游 builder 能识别并用于生成命令、徽标、硬件/策略选择器。
-2. **本仓库扩展字段**(上游忽略,页面与 CI 使用):config_params / scenarios / extra_config / overview / prerequisites / env_setup / verification / evaluation / performance / tuning / faq / references。
+2. **本仓库扩展字段**(上游忽略,页面与 CI 使用):performance_model_names / config_params / scenarios / extra_config / overview / prerequisites / env_setup / verification / evaluation / performance / tuning / faq / references。
 
 ```yaml
 meta:            # 上游
@@ -24,6 +24,7 @@ strategy_overrides:      # 上游
 dependencies:    # 上游
 guide:           # 上游(本仓库留空占位,教程正文在扩展字段)
 # —— 以下为扩展 ——
+performance_model_names: # 额外的性能表模型名
 config_params:   # 可编辑值参数(页面/CI)
 overview / weight_download / prerequisites / env_setup / verification / ...
 extra_config:    # 附加配置芯片(页面)

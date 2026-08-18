@@ -17,9 +17,6 @@ meta:
 
 model:
   model_id: "zai-org/GLM-5"
-  performance_model_names:
-    - "GLM-5"
-    - "GLM-5.1"
   min_vllm_version: "0.17.0rc1"
   architecture: moe
   parameter_count: "744B"
@@ -118,6 +115,9 @@ dependencies:
     command: "pip install 'transformers>=5.2.0'"
 
 guide: ""
+performance_model_names:
+  - "GLM-5"
+  - "GLM-5.1"
 
 # —— 可配置数值参数(页面/CI 扩展;默认值 = tutorial 基线)——
 config_params:

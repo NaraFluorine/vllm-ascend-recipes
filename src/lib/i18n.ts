@@ -60,6 +60,8 @@ export const translations = {
     labelPrecision: 'Precision',
     labelDeployment: 'Deployment',
     labelCase: 'Case',
+    labelFeatures: 'Features',
+    labelConfig: 'Config',
     labelMoreConfig: 'More Config',
 
     tabPip: 'pip install',
@@ -141,6 +143,8 @@ export const translations = {
     labelPrecision: '精度',
     labelDeployment: '部署模式',
     labelCase: '场景',
+    labelFeatures: '特性',
+    labelConfig: '参数配置',
     labelMoreConfig: '更多配置',
 
     tabPip: 'pip 安装',

@@ -11,10 +11,6 @@ meta:
 
 model:
   model_id: "ZhipuAI/GLM-4.7"
-  performance_model_names:
-    - "GLM-4.5"
-    - "GLM-4.6"
-    - "GLM-4.7"
   min_vllm_version: "0.10.0rc1"
   architecture: moe
   parameter_count: "31B"
@@ -22,6 +18,76 @@ model:
   context_length: 133000
   modality: text
 
+# Upstream-aligned weight variants (vllm-project/recipes schema). VRAM = minimum to load.
+variants:
+  default:
+    precision: W8A8
+    vram_minimum_gb: 426
+    description: "W8A8 quantized weights (GLM-4.7-W8A8-floatmtp ships MTP heads) - 1x Atlas 800I A2 (64Gx8) or 1x Atlas 800I A3"
+  bf16:
+    model_id: "ZhipuAI/GLM-4.7"
+    precision: BF16
+    vram_minimum_gb: 852
+    description: "Full BF16 weights - 1x Atlas 800I A3 (64Gx16)"
+
+features:
+  expert_parallel:
+    description: "MoE expert parallelism across DP ranks"
+    args: ["--enable-expert-parallel"]
+  spec_decoding:
+    label: "MTP Spec Decoding"
+    description: "Configures MTP (Multi-Token Prediction) speculative decoding to accelerate inference"
+    args: ["--speculative-config", '{"num_speculative_tokens": 3, "method": "mtp"}']
+  compilation_config:
+    label: "Compilation Config"
+    description: "Runs decode with full ACL graph execution to reduce scheduling latency"
+    args: ["--compilation-config", '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}']
+  tool_calling:
+    label: "Tool Calling"
+    description: "GLM-4.7 tool-call parser"
+    args: ["--enable-auto-tool-choice", "--tool-call-parser", "glm47"]
+  reasoning:
+    label: "Reasoning Parser"
+    description: "GLM-4.x reasoning parser"
+    args: ["--reasoning-parser", "glm45"]
+  topk_optimize:
+    label: "TopK Optimize"
+    description: "TopK optimization recommended for GLM-4.x models"
+    env:
+      VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE: "1"
+  balance_scheduling:
+    label: "Balance Scheduling"
+    description: "Ascend balanced scheduling optimization"
+    env:
+      VLLM_ASCEND_BALANCE_SCHEDULING: "1"
+
+extra_config:
+- key: fusion_ops_gmmswigluquant
+  label: "fusion_ops_gmmswigluquant=false"
+
+config_params:
+  max_model_len:
+    default: 133000
+    type: number
+    description: "Maximum context length (input + output tokens); set it according to your actual scenario"
+  max_num_seqs:
+    default: 16
+    type: number
+    description: "Maximum concurrent sequences; use <=4 for long-context low-concurrency scenarios"
+  max_num_batched_tokens:
+    default: 8192
+    type: number
+    description: "Maximum batched tokens per scheduler iteration"
+  gpu_memory_utilization:
+    default: 0.9
+    type: number
+    description: "NPU memory fraction available for KV cache"
+
+guide: ""
+performance_model_names:
+  - "GLM-4.5"
+  - "GLM-4.6"
+  - "GLM-4.7"
 overview: |-
   GLM-4.x (GLM-4.5/4.6/4.7) are Mixture-of-Experts (MoE) foundational models from Zhipu AI (THUDM), specifically designed for agent applications.
 weight_download:
@@ -248,11 +314,22 @@ scenarios:
 - npu: Atlas 800I A3
   precision: W8A8
   deployment: Single-Node
-  case: Multi Card
+  case: Long Context High Concurrency (>4)
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "Data parallel size; dp2 is recommended for long-context high concurrency, low latency, and high-throughput short sequences"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "Tensor parallel size; tp8 is recommended for long-context high concurrency, low latency, and high-throughput short sequences"
   steps:
   - title: Start the server
     content: |-
-      Single-node deployment for GLM-4.7 W8A8 quantized model on Atlas 800I A3.
+      Single-node deployment for GLM-4.7 W8A8 quantized model on Atlas 800I A3. This option targets long-context high-concurrency (>4) scenarios and recommends `dp2 tp8`.
 
       ```bash
       export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -267,17 +344,17 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 133000 \
-          --max-num-batched-tokens 8192 \
-          --data-parallel-size 2 \
-          --tensor-parallel-size 8 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.9 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -285,7 +362,8 @@ scenarios:
       > - `--quantization ascend`: required for W8A8 quantized models. Remove this parameter when using BF16 weights.
       > - `--speculative-config`: configures MTP speculative decoding to accelerate inference.
       > - `fusion_ops_gmmswigluquant`: should be `false` when total number of NPUs is <= 16 due to performance degradation.
-      > - For long-context low-concurrency (<=4) scenarios, recommend `dp1 tp16`; for high-concurrency (>4), recommend `dp2 tp8`.
+      > - For long-context low-concurrency (<=4) scenarios, recommend `dp1 tp16`; for long-context high-concurrency (>4), low-latency short sequences, and high-throughput short sequences, recommend `dp2 tp8`.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
 
       For parameter details, refer to:
 
@@ -295,10 +373,182 @@ scenarios:
   - title: Service Verification
     content: |-
       After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: Single-Node
+  case: Long Context Low Concurrency (<=4)
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    max_num_seqs:
+      default: 4
+      type: number
+      description: "Use <=4 concurrent sequences for long-context low-concurrency serving to prioritize KV cache capacity"
+    data_parallel_size:
+      default: 1
+      type: number
+      description: "dp1 is recommended for long-context low concurrency"
+    tensor_parallel_size:
+      default: 16
+      type: number
+      description: "tp16 is recommended for long-context low concurrency"
+  steps:
+  - title: Start the server
+    content: |-
+      Long-context low-concurrency deployment for GLM-4.7 W8A8 quantized model on Atlas 800I A3, using the recommended `dp1 tp16` layout.
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - `--quantization ascend`: required for W8A8 quantized models. Remove this parameter when using BF16 weights.
+      > - `--speculative-config`: configures MTP speculative decoding to accelerate inference.
+      > - `fusion_ops_gmmswigluquant`: should be `false` when total number of NPUs is <= 16 due to performance degradation.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: Single-Node
+  case: Low-Latency Short Sequences
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "dp2 is recommended for low-latency short sequences"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "tp8 is recommended for low-latency short sequences"
+  steps:
+  - title: Start the server
+    content: |-
+      Low-latency short-sequence deployment for GLM-4.7 W8A8 quantized model on Atlas 800I A3, using the recommended `dp2 tp8` layout.
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - Low-latency short sequences recommend `dp2 tp8`.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
+- npu: Atlas 800I A3
+  precision: W8A8
+  deployment: Single-Node
+  case: High-Throughput Short Sequences
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    data_parallel_size:
+      default: 2
+      type: number
+      description: "dp2 is recommended for high-throughput short sequences"
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "tp8 is recommended for high-throughput short sequences"
+  steps:
+  - title: Start the server
+    content: |-
+      High-throughput short-sequence deployment for GLM-4.7 W8A8 quantized model on Atlas 800I A3, using the recommended `dp2 tp8` layout.
+
+      ```bash
+      export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+      export HCCL_OP_EXPANSION_MODE="AIV"
+      export HCCL_BUFFSIZE=512
+      export OMP_PROC_BIND=false
+      export OMP_NUM_THREADS=1
+      export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+      export VLLM_ASCEND_BALANCE_SCHEDULING=1
+      export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=1
+
+      vllm serve your_model_path \
+          --served-model-name glm \
+          --trust-remote-code \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --data-parallel-size {{data_parallel_size}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
+          --seed 1024 \
+          --port 8000
+      ```
+
+      > - High-throughput short sequences recommend `dp2 tp8`.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
+  - title: Service Verification
+    content: |-
+      After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
 - npu: Atlas 800I A2
   precision: W8A8
   deployment: Single-Node
   case: Multi Card
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    tensor_parallel_size:
+      default: 8
+      type: number
+      description: "A2 single-node serving uses tp8 by default to cover all 8 NPUs"
   steps:
   - title: Start the server
     content: |-
@@ -317,21 +567,25 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 133000 \
-          --max-num-batched-tokens 8192 \
-          --tensor-parallel-size 8 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --quantization ascend \
-          --gpu-memory-utilization 0.9 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
 
       > - A2 has 8 NPUs, so `--tensor-parallel-size 8` uses all available NPUs.
+      > - `--quantization ascend`: required for W8A8 quantized models. Remove this parameter when using BF16 weights.
+      > - `--speculative-config`: configures MTP speculative decoding to accelerate inference.
+      > - `fusion_ops_gmmswigluquant`: should be `false` when total number of NPUs is <= 16 due to performance degradation.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
   - title: Service Verification
     content: |-
       After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.
@@ -339,6 +593,17 @@ scenarios:
   precision: BF16
   deployment: Multi-Node
   case: Multi Node
+  default_configs:
+  - fusion_ops_gmmswigluquant
+  config_params:
+    max_model_len:
+      default: 140000
+      type: number
+      description: "Default context length for the BF16 multi-node example; adjust it for your input/output length"
+    tensor_parallel_size:
+      default: 16
+      type: number
+      description: "The BF16 multi-node example uses tp16 by default"
   steps:
   - title: Start the server
     content: |-
@@ -363,23 +628,20 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 140000 \
-          --max-num-batched-tokens 8192 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
           --data-parallel-size 2 \
           --data-parallel-size-local 1 \
           --data-parallel-start-rank 0 \
           --data-parallel-address <node0_ip> \
           --data-parallel-rpc-port 13389 \
-          --tensor-parallel-size 16 \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
-          --gpu-memory-utilization 0.9 \
-          --enable-auto-tool-choice \
-          --tool-call-parser glm47 \
-          --reasoning-parser glm45 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -403,24 +665,21 @@ scenarios:
       vllm serve your_model_path \
           --served-model-name glm \
           --trust-remote-code \
-          --max-num-seqs 16 \
-          --max-model-len 140000 \
-          --max-num-batched-tokens 8192 \
+          --max-num-seqs {{max_num_seqs}} \
+          --max-model-len {{max_model_len}} \
+          --max-num-batched-tokens {{max_num_batched_tokens}} \
           --data-parallel-size 2 \
           --data-parallel-size-local 1 \
           --data-parallel-start-rank 1 \
           --data-parallel-address <node0_ip> \
           --data-parallel-rpc-port 13389 \
-          --tensor-parallel-size 16 \
+          --tensor-parallel-size {{tensor_parallel_size}} \
           --enable-expert-parallel \
           --headless \
-          --gpu-memory-utilization 0.9 \
-          --enable-auto-tool-choice \
-          --tool-call-parser glm47 \
-          --reasoning-parser glm45 \
-          --speculative-config '{"num_speculative_tokens": 3, "method": "mtp"}' \
-          --compilation-config '{"cudagraph_capture_sizes": [1,2,4,8,16,32,64,128,256,512], "cudagraph_mode": "FULL_DECODE_ONLY"}' \
-          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {"fusion_ops_gmmswigluquant": false}}' \
+          --gpu-memory-utilization {{gpu_memory_utilization}} \
+          {{spec_decoding}} \
+          {{compilation_config}} \
+          --additional-config '{"enable_shared_expert_dp": true, "ascend_fusion_config": {%%CONFIG:fusion_ops_gmmswigluquant%%"fusion_ops_gmmswigluquant": false%%/CONFIG:fusion_ops_gmmswigluquant%%}}' \
           --seed 1024 \
           --port 8000
       ```
@@ -428,6 +687,8 @@ scenarios:
       > - Replace `<node0_ip>` and `<node1_ip>` with actual node IP addresses.
       > - Replace `<nic_name>` with the actual network interface name.
       > - Node 1 requires `--headless` and `--data-parallel-start-rank 1`.
+      > - BF16 weights do not need `--quantization ascend`.
+      > - `max-model-len` and `max-num-seqs` should be set according to the actual scenario.
   - title: Service Verification
     content: |-
       After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.

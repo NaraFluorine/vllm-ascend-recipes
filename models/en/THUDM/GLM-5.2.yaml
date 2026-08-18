@@ -11,8 +11,6 @@ meta:
 
 model:
   model_id: "zai-org/GLM-5.2"
-  performance_model_names:
-    - "GLM-5.2"
   min_vllm_version: "0.22.1rc"
   architecture: moe
   parameter_count: "753B"
@@ -20,6 +18,28 @@ model:
   context_length: 131072
   modality: text
 
+# Upstream-aligned weight variants (vllm-project/recipes schema). VRAM = minimum to load.
+variants:
+  default:
+    model_id: "Eco-Tech/GLM-5.2-w8a8"
+    precision: W8A8
+    vram_minimum_gb: 904
+    description: "W8A8 pre-quantized weights - 1x Atlas 800I A3 or 2x Atlas 800I A2"
+  w4a8c8:
+    model_id: "Eco-Tech/GLM-5.2-w4a8c8"
+    precision: W4A8C8
+    vram_minimum_gb: 452
+    description: "W4A8C8 compressed weights - 1x Atlas 800I A3 or 2x Atlas 800I A2"
+  bf16:
+    model_id: "ZhipuAI/GLM-5.2"
+    precision: BF16
+    vram_minimum_gb: 1807
+    description: "Full BF16 weights - 2x Atlas 800I A3 or 4x Atlas 800I A2"
+
+
+guide: ""
+performance_model_names:
+  - "GLM-5.2"
 overview: |-
   GLM-5.2 is a Mixture-of-Experts (MoE) model from Zhipu AI (THUDM) with 753B total parameters, targeting complex systems engineering and long-horizon agentic tasks.
 weight_download:
@@ -48,6 +68,15 @@ weight_download:
       pip install modelscope
       modelscope download --model Eco-Tech/GLM-5.2-w8a8
       ```
+- weight_version: W4A8C8 (Pre-quantized)
+  sources:
+  - source: ModelScope
+    url: https://www.modelscope.cn/models/Eco-Tech/GLM-5.2-w4a8c8
+    command: |-
+      ```bash
+      pip install modelscope
+      modelscope download --model Eco-Tech/GLM-5.2-w4a8c8
+      ```
 prerequisites:
 - title: Model Weight
   content: |-
@@ -57,8 +86,9 @@ prerequisites:
     |-------|---------------------|----------|
     | GLM-5.2 (BF16) | Atlas 800I A3 × 2<br>Atlas 800I A2 × 4 | [Download](https://www.modelscope.cn/models/ZhipuAI/GLM-5.2) |
     | GLM-5.2-w8a8 | Atlas 800I A3 × 1<br>Atlas 800I A2 × 2 | [Download](https://www.modelscope.cn/models/Eco-Tech/GLM-5.2-w8a8) |
+    | GLM-5.2-w4a8c8 | Atlas 800I A3 × 1<br>Atlas 800I A2 × 2 | [Download](https://www.modelscope.cn/models/Eco-Tech/GLM-5.2-w4a8c8) |
 
-    These are the recommended numbers of cards, which can be adjusted according to the actual situation.
+    You can also quantize the model directly with [msmodelslim](https://gitcode.com/Ascend/msmodelslim). It is recommended to download the weights to a multi-node shared directory, such as `/root/.cache/`.
 - title: Verify Multi-node Communication
   content: |-
     If you want to deploy a multi-node environment, you need to verify multi-node communication according to [verify multi-node communication environment](https://docs.vllm.ai/projects/ascend/en/latest/installation.html#verify-multi-node-communication).
@@ -209,9 +239,120 @@ env_setup:
       For more details, please refer to the [Installation Guide](https://docs.vllm.ai/projects/ascend/en/latest/installation.html).
 scenario_selector_labels:
   precision: Quantization
-  deployment: Sequence
+  deployment: Deployment Mode
   case: Scenario
 scenarios:
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: Dual-Node Co-Located
+  case: Low Latency 64K
+  steps:
+  - title: Scenario Overview
+    content: |-
+      Low-latency 64K-input serving is recommended with W4A8C8 weights and dual-node co-located deployment.
+
+      |Deployment Mode|Total NPUs|Weight Version|Key Considerations|
+      |---------------|----------|--------------|------------------|
+      |Dual-node co-located (A3), [Multi-Node Co-Located Deployment](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/GLM5.2.html#5112-multi-node-co-located-deployment)|32 (A3)|w4a8c8|dp2 tp16, MTP3, max-num-seqs 8, max-model-len 135000, FlashComm1, DSA CP|
+  - title: Detailed Node Configuration
+    content: |-
+      TP/DP columns show the per-node values used by the deployment scripts; each A3 node uses 16 NPUs.
+
+      |Configuration|NPUs per node|TP|DP per node|Max Num Seqs|Max Num Batched Tokens|Max Model Len|MTP Spec Num|
+      |-------------|-------------|--|-----------|------------|----------------------|-------------|------------|
+      |Dual-Node (per node)|16|16|1|8|8192|135000|3|
+
+      `max-model-len` and `max-num-seqs` should be tuned for your actual input/output lengths, prefix-cache hit rate, and serving concurrency.
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: Dual-Node Co-Located
+  case: Low Latency 128K
+  steps:
+  - title: Scenario Overview
+    content: |-
+      Low-latency 128K-input serving is recommended with W4A8C8 weights and dual-node co-located deployment.
+
+      |Deployment Mode|Total NPUs|Weight Version|Key Considerations|
+      |---------------|----------|--------------|------------------|
+      |Dual-node co-located (A3), [Multi-Node Co-Located Deployment](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/GLM5.2.html#5112-multi-node-co-located-deployment)|32 (A3)|w4a8c8|dp2 tp16, MTP3, max-num-seqs 8, max-model-len 135000, FlashComm1, DSA CP|
+  - title: Detailed Node Configuration
+    content: |-
+      TP/DP columns show the per-node values used by the deployment scripts; each A3 node uses 16 NPUs.
+
+      |Configuration|NPUs per node|TP|DP per node|Max Num Seqs|Max Num Batched Tokens|Max Model Len|MTP Spec Num|
+      |-------------|-------------|--|-----------|------------|----------------------|-------------|------------|
+      |Dual-Node (per node)|16|16|1|8|8192|135000|3|
+
+      For latency-oriented serving, keep `max-num-seqs` small and reserve KV-cache memory according to the expected output length.
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: Dual-Node Co-Located
+  case: High Throughput 64K
+  steps:
+  - title: Scenario Overview
+    content: |-
+      High-throughput 64K-input serving is recommended with W4A8C8 weights and dual-node co-located deployment.
+
+      |Deployment Mode|Total NPUs|Weight Version|Key Considerations|
+      |---------------|----------|--------------|------------------|
+      |Dual-node co-located (A3), [Multi-Node Co-Located Deployment](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/GLM5.2.html#5112-multi-node-co-located-deployment)|32 (A3)|w4a8c8|dp4 tp8, fused MC2, MTP3, max-num-seqs 16, max-model-len 66000, FlashComm1, DSA CP|
+  - title: Detailed Node Configuration
+    content: |-
+      TP/DP columns show the per-node values used by the deployment scripts; each A3 node uses 16 NPUs.
+
+      |Configuration|NPUs per node|TP|DP per node|Max Num Seqs|Max Num Batched Tokens|Max Model Len|MTP Spec Num|
+      |-------------|-------------|--|-----------|------------|----------------------|-------------|------------|
+      |Dual-Node (per node)|16|8|2|16|8192|66000|3|
+
+      For throughput-oriented serving, `dp4 tp8` improves concurrency capacity and pairs with FlashComm1 plus DSA CP for long-context prefill.
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: PD Disaggregation
+  case: High Throughput
+  tags: [pd-multinode]
+  strategy: pd_cluster
+  steps:
+  - title: Scenario Overview
+    content: |-
+      High-throughput PD disaggregation is recommended with dedicated P/D node pools and Mooncake KV transfer.
+
+      |Deployment Mode|Total NPUs|Weight Version|Key Considerations|
+      |---------------|----------|--------------|------------------|
+      |PD disaggregation (A3), [Prefill-Decode Disaggregation](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/GLM5.2.html#5113-prefill-decode-disaggregation)|4 nodes (A3)|w4a8c8|P: dp4 tp8 (max-num-seqs 64, max-num-batched-tokens 8192, MTP1); D: dp32 tp1 (max-num-seqs 32, max-num-batched-tokens 164, MTP5), max-model-len 133120, dedicated P/D nodes, Mooncake KV transfer|
+  - title: Detailed Node Configuration
+    content: |-
+      TP/DP columns show the per-node values used by the deployment scripts; each A3 node uses 16 NPUs.
+
+      |Node Role|NPUs per node|TP|DP per node|Max Num Seqs|Max Num Batched Tokens|Max Model Len|MTP Spec Num|
+      |---------|-------------|--|-----------|------------|----------------------|-------------|------------|
+      |PD - Server-P Node|16|8|2|64|8192|133120|1|
+      |PD - Server-D Node|16|1|16|32|164|133120|5|
+
+      On PD decode nodes, `max-num-batched-tokens` is configured as `(MTP Spec Num + 1) * Max Num Seqs`.
+- npu: Atlas 800I A3
+  precision: W4A8C8
+  deployment: PD Disaggregation
+  case: Long Context 1M
+  tags: [pd-multinode]
+  strategy: pd_cluster
+  steps:
+  - title: Scenario Overview
+    content: |-
+      1M-context serving is recommended with W4A8C8 weights, PD disaggregation, and DCP8.
+
+      |Deployment Mode|Total NPUs|Weight Version|Key Considerations|
+      |---------------|----------|--------------|------------------|
+      |PD disaggregation (A3), [PD Disaggregation 1M Deployment](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/GLM5.2.html#523-pd-disaggregation-1m-deployment)|4 nodes (A3)|w4a8c8|P/D: dp4 tp8, DCP8, max-model-len 1040000, Mooncake KV transfer|
+  - title: Detailed Node Configuration
+    content: |-
+      TP/DP columns show the per-node values used by the deployment scripts; each A3 node uses 16 NPUs.
+
+      |Node Role|NPUs per node|TP|DP per node|Max Num Seqs|Max Num Batched Tokens|Max Model Len|MTP Spec Num|
+      |---------|-------------|--|-----------|------------|----------------------|-------------|------------|
+      |PD - Server-P Node|16|8|2|8|16384|1040000|1|
+      |PD - Server-D Node|16|8|2|32|128|1040000|3|
+
+      The 1M scenario must reserve memory for a very large KV cache, so prefill/co-located nodes usually need lower `gpu-memory-utilization` values (around 0.75-0.80).
 - npu: Atlas 800I A3
   precision: W8A8
   deployment: 20K
@@ -653,11 +794,17 @@ tuning: |-
 
   **Key tuning notes for GLM-5.2:**
 
-  - For single-node low-latency scenarios, recommend `dp1 tp16` with expert parallel disabled.
-  - `VLLM_ASCEND_ENABLE_FLASHCOMM1=1` should be disabled for long-sequence (>=16k) and low-concurrency (<=8 batch size) scenarios.
-  - `VLLM_ASCEND_ENABLE_MLAPO=1` is required for W8A8 quantized models on the decode side.
-  - `DYNAMIC_EPLB=1` enables dynamic expert parallel load balancing on decode nodes.
-  - For 200k context window, use co-located 4-node configuration with dp4 tp8.
+  |Parameter|Low Latency|High Throughput|Long Context|Description|
+  |---------|-----------|---------------|------------|-----------|
+  |`--max-num-batched-tokens`|Lower (4096-8192)|Higher on prefill (8192)|Higher on prefill (16384)|Controls per-step batch size. Lower values reduce per-step latency; higher values improve prefill throughput.|
+  |`--gpu-memory-utilization`|0.92-0.95|0.90-0.95|0.75-0.93|NPU memory ratio. The 1M scenario must reserve memory for a huge KV cache, so prefill/co-located nodes use lower values (0.75-0.80).|
+  |`num_speculative_tokens` (MTP)|3-5|3-5|1 (prefill) / 3 (decode)|MTP speculative token count. Higher values improve decode throughput at the cost of draft-model KV cache memory; PD prefill nodes use 1.|
+  |`enable_dsa_cp`|Optional|Enabled (prefill nodes)|Enabled (prefill nodes)|DSA context parallelism accelerates long-context prefill and has been decoupled from FlashComm1 since v0.21.0.|
+  |`enable_sparse_sfa_c8` / `enable_sparse_li_c8`|false / true|true / true (PD)|false / true|`enable_sparse_sfa_c8` is an experimental SFA optimization for C8 quantized models; do not combine it with DCP in v0.23.0. `enable_sparse_li_c8` is independent and still recommended.|
+  |`enable_balance_scheduling`|Enabled (single-node)|Enabled|Disabled for PD|Improves output throughput and lowers TPOT in the v1 scheduler. TTFT may regress in some scenarios; it is not recommended for prefill-decode disaggregation.|
+  |`VLLM_ASCEND_ENABLE_FLASHCOMM1`|1|1 (prefill nodes)|1 (prefill nodes)|Communication optimization. Conflicts with `layer_sharding` that includes `o_proj`.|
+  |`VLLM_ASCEND_ENABLE_MLAPO`|-|1 (A2 P/D nodes)|-|Fused operator that can significantly improve performance while consuming more NPU memory; on A3 it is used only on decode nodes.|
+  |`cudagraph_mode`|FULL_DECODE_ONLY|FULL_DECODE_ONLY (decode)|FULL_DECODE_ONLY (decode)|Captures only the decode phase. PD prefill nodes use `--enforce-eager` instead.|
 faq: |-
   For common environment, installation, and general parameter issues, please refer to the [Public FAQ](https://docs.vllm.ai/projects/ascend/en/latest/faqs.html). This chapter only covers model-specific issues.
 
@@ -683,5 +830,7 @@ references:
   url: https://www.modelscope.cn/models/ZhipuAI/GLM-5.2
 - title: ModelScope Model Download (GLM-5.2 W8A8)
   url: https://www.modelscope.cn/models/Eco-Tech/GLM-5.2-w8a8
+- title: ModelScope Model Download (GLM-5.2 W4A8C8)
+  url: https://www.modelscope.cn/models/Eco-Tech/GLM-5.2-w4a8c8
 - title: vllm-ascend GitHub
   url: https://github.com/vllm-project/vllm-ascend

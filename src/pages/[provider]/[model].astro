@@ -33,7 +33,9 @@ interface Props {
 
 const { modelEn, modelZh } = Astro.props;
 const model = modelEn;
-const performanceTables = getPerformanceTables(model.model.performance_model_names ?? []);
+const performanceTables = getPerformanceTables(
+  model.performance_model_names ?? model.model.performance_model_names ?? [],
+);
 const base = import.meta.env.BASE_URL;
 const basePrefix = base.endsWith('/') ? base : base + '/';
 const baseSuffix = base.endsWith('/') ? base.slice(0, -1) : base;
@@ -237,6 +239,9 @@ addToc('reference', 'sectionMoreInfo');
             featuresZh={modelZh.features ?? modelEn.features}
             optInFeaturesEn={modelEn.opt_in_features}
             optInFeaturesZh={modelZh.opt_in_features ?? modelEn.opt_in_features}
+            variantsEn={modelEn.variants}
+            variantsZh={modelZh.variants ?? modelEn.variants}
+            hardwareStatus={modelEn.meta.hardware as Record<string, string> | undefined}
             extraConfigEn={modelEn.extra_config}
             extraConfigZh={modelZh.extra_config ?? modelEn.extra_config}
             selectorLabelsEn={modelEn.scenario_selector_labels}

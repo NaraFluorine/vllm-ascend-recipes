@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useLang } from '../lib/useLang';
 import { resolveVllmAscendLink } from '../lib/links';
+import type { Variant } from '../lib/types';
 import {
   roleNodeCount,
   loadPdEndpoints,
@@ -11,6 +13,7 @@ import {
 // Map the UI's NPU display name to the strategy_overrides hardware key.
 function hwKeyForNpu(npu: string): string {
   const n = npu.toLowerCase();
+  if (n.includes('300i') || n.includes('duo')) return 'atlas_300i_duo';
   if (n.includes('a2')) return 'atlas_800_a2';
   if (n.includes('a3')) return 'atlas_800_a3';
   return 'default';
@@ -36,6 +39,7 @@ interface Scenario {
   strategy?: string;
   steps: ScenarioStep[];
   default_configs?: string[];
+  config_params?: Record<string, ConfigParam>;
 }
 
 interface ConfigParam {
@@ -65,6 +69,9 @@ interface CascadeSelectorProps {
   featuresZh?: Record<string, FeatureMeta>;
   optInFeaturesEn?: string[];
   optInFeaturesZh?: string[];
+  variantsEn?: Record<string, Variant>;
+  variantsZh?: Record<string, Variant>;
+  hardwareStatus?: Record<string, string>;
   selectorLabelsEn?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
   selectorLabelsZh?: Partial<Record<'npu' | 'precision' | 'deployment' | 'case', string>>;
   pdCluster?: {
@@ -104,6 +111,255 @@ function renderFeature(f: FeatureMeta, on: boolean): string {
   return parts.join('\n');
 }
 
+// ---- Hover tooltip (portal-based so the filter panel's overflow-hidden
+// border never clips it; mirrors the vllm recipes command-builder) ----
+function Tooltip({ content, children }: { content?: string; children: React.ReactNode }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const show = useCallback(() => {
+    if (!content || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    const width = 320; // w-80
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    setPos({ top: r.bottom + 8, left });
+  }, [content]);
+
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [pos]);
+
+  if (!content) return <>{children}</>;
+  return (
+    <span
+      ref={ref}
+      className="relative inline-flex"
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+      onFocus={show}
+      onBlur={() => setPos(null)}
+    >
+      {children}
+      {pos &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{ top: pos.top, left: pos.left }}
+            className="fixed z-50 w-80 max-w-[85vw] rounded-lg border border-ink-700 bg-ink-900/95 px-3.5 py-2.5 text-xs leading-relaxed text-ink-300 shadow-xl shadow-black/40 pointer-events-none whitespace-pre-line"
+          >
+            {content}
+          </div>,
+          document.body,
+        )}
+    </span>
+  );
+}
+
+// Small ⓘ next to a row label explaining what the row means (vllm ConfigRow hint).
+function RowHint({ text }: { text: string }) {
+  return (
+    <Tooltip content={text}>
+      <span
+        aria-label="info"
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-ink-600 text-[9px] font-mono text-ink-500 hover:text-ink-300 hover:border-ink-500 cursor-help"
+      >
+        i
+      </span>
+    </Tooltip>
+  );
+}
+
+// Verified / experimental status dot for NPU pills (vllm HwStatusDot).
+function StatusDot({ status }: { status?: string }) {
+  const cls =
+    status === 'verified'
+      ? 'bg-emerald-400'
+      : status === 'experimental'
+        ? 'bg-amber-400'
+        : 'bg-ink-600';
+  return (
+    <span className={`inline-block w-2 h-2 rounded-full ${cls} mr-1.5 shrink-0`} aria-hidden />
+  );
+}
+
+// ---- Rich option metadata (per-language), mirroring the vllm recipes page ----
+const NPU_INFO: Record<string, Record<string, string>> = {
+  en: {
+    a3: 'Huawei Atlas 800I A3 inference server — 8 NPUs in a dual-die design (16 compute chips), 64G or 128G memory per chip. Fastest single-node serving path for Ascend.',
+    a2: 'Huawei Atlas 800I A2 (Ascend 910B) server — 8 NPUs × 64G memory; the workhorse node for single- and multi-node serving.',
+    duo: 'Atlas 300I Duo inference card (310P) — 96G LPDDR4X per card for budget inference; uses the -310p container image and a conservative context length.',
+  },
+  zh: {
+    a3: '华为 Atlas 800I A3 推理服务器 —— 8 颗 NPU、双芯设计共 16 个计算芯片，每芯 64G/128G 显存，是昇腾上最快的单机推理机型。',
+    a2: '华为 Atlas 800I A2（昇腾 910B）服务器 —— 8 颗 NPU × 64G 显存，单机/多机部署的主力机型。',
+    duo: 'Atlas 300I Duo 推理卡（310P）—— 每卡 96G LPDDR4X 显存，面向高性价比推理；使用 -310p 容器镜像并采用保守的上下文长度。',
+  },
+};
+
+function npuInfo(npu: string, lang: string): string | undefined {
+  const n = npu.toLowerCase();
+  const key =
+    n.includes('300i') || n.includes('duo')
+      ? 'duo'
+      : n.includes('a3')
+        ? 'a3'
+        : n.includes('a2')
+          ? 'a2'
+          : '';
+  return key ? NPU_INFO[lang]?.[key] : undefined;
+}
+
+const DEPLOYMENT_INFO: Array<{ match: string[]; en: string; zh: string }> = [
+  {
+    match: ['hybrid', '混合'],
+    en: 'Prefill-Decode hybrid deployment — prefill and decode run on the same node, which is the simplest path for production-grade throughput on one machine.',
+    zh: 'PD（Prefill-Decode）混合部署 —— Prefill 与 Decode 运行在同一节点，适合单机上的面向生产级吞吐。',
+  },
+  {
+    match: ['separation', 'disaggregation', '分离'],
+    en: 'Prefill-Decode disaggregation — prefill and decode run on separate node pools connected by KV cache transfer, so each phase scales independently for production-grade throughput.',
+    zh: 'PD（Prefill-Decode）分离部署 —— Prefill 与 Decode 运行在不同节点池，通过 KV cache 传输衔接，两个阶段可独立扩缩容，面向生产级吞吐。',
+  },
+  {
+    match: ['multi', '多机', '多节点'],
+    en: "The model is sharded across multiple nodes via tensor/expert parallelism — used when weights or KV cache exceed a single node's NPU memory.",
+    zh: '模型通过张量/专家并行切分到多个节点 —— 当权重或 KV cache 超过单节点显存时使用。',
+  },
+  {
+    match: ['single', '单机'],
+    en: 'Prefill and Decode run on the same node — simplest topology, suited to development, testing, and small-to-medium scale serving.',
+    zh: 'Prefill 与 Decode 在同一节点完成 —— 最简单的部署拓扑，适合开发、测试和中 小规模推理服务。',
+  },
+];
+
+function deploymentInfo(deployment: string, lang: string): string | undefined {
+  const d = deployment.toLowerCase();
+  for (const info of DEPLOYMENT_INFO) {
+    if (info.match.some((m) => d.includes(m))) return lang === 'zh' ? info.zh : info.en;
+  }
+  return undefined;
+}
+
+// Pick the yaml variant describing a given precision pill (exact key match
+// wins, e.g. `bf16`; otherwise the first variant with a matching precision).
+function variantForPrecision(
+  variants: Record<string, Variant> | undefined,
+  precision: string,
+): Variant | undefined {
+  if (!variants) return undefined;
+  const lower = precision.toLowerCase();
+  let fallback: Variant | undefined;
+  for (const [key, v] of Object.entries(variants)) {
+    if (key.toLowerCase() === lower) return v;
+    if (
+      fallback === undefined &&
+      typeof v.precision === 'string' &&
+      v.precision.toLowerCase() === lower
+    ) {
+      fallback = v;
+    }
+  }
+  return fallback;
+}
+
+// Hover text for a precision pill — same shape as the vllm recipes Variant row.
+function variantTooltip(v: Variant | undefined, lang: string): string | undefined {
+  if (!v) return undefined;
+  const parts: string[] = [];
+  if (v.description) parts.push(String(v.description));
+  if (typeof v.vram_minimum_gb === 'number') {
+    parts.push(
+      lang === 'zh'
+        ? `加载模型权重最少需要 ${v.vram_minimum_gb} GB 显存 —— 对外服务还需额外的 KV cache 显存；显存不足时可通过多节点部署扩展。`
+        : `Min ${v.vram_minimum_gb} GB to load — add KV cache for serving. Scale out via multi-node if needed.`,
+    );
+  }
+  return parts.length ? parts.join('\n\n') : undefined;
+}
+
+// ---- Feature append synthesis ----
+// A feature's `--flag` tokens (env keys) identify whether a step's baseline
+// command already includes it.
+function featureArgTokens(f: FeatureMeta): string[] {
+  return (f.args ?? []).filter((a) => a.startsWith('--'));
+}
+function featureEnvTokens(f: FeatureMeta): string[] {
+  return Object.keys(f.env ?? {});
+}
+
+// How a step's content relates to a feature:
+//   'placeholder' — the step has a {{key}} / %%CONFIG:key%% marker (toggle
+//                   substitution owns rendering; never append)
+//   'present'     — every arg/env token is already hardcoded in the content
+//   'absent'      — not referenced and not present
+function featureHandledIn(
+  content: string,
+  key: string,
+  f: FeatureMeta,
+): 'placeholder' | 'present' | 'absent' {
+  if (content.includes(`{{${key}}}`) || content.includes(`%%CONFIG:${key}%%`)) return 'placeholder';
+  const args = featureArgTokens(f);
+  const envs = featureEnvTokens(f);
+  const argsPresent = args.length === 0 || args.every((t) => content.includes(t));
+  const envPresent =
+    envs.length === 0 || envs.every((k) => new RegExp(`^\\s*export ${k}=`, 'm').test(content));
+  return argsPresent && envPresent ? 'present' : 'absent';
+}
+
+// Append `argText` as a new continuation line at the end of the `vllm serve`
+// command inside a fenced code block body (adds the trailing `\` when the
+// command currently ends without one).
+function appendToServeCommand(code: string, argText: string): string {
+  const lines = code.split('\n');
+  const start = lines.findIndex((l) => /^\s*vllm serve\b/.test(l));
+  if (start === -1) return code;
+  let end = start;
+  while (end < lines.length - 1 && /\\\s*$/.test(lines[end])) end++;
+  if (/\\\s*$/.test(lines[end])) {
+    lines.splice(end + 1, 0, '    ' + argText);
+  } else {
+    lines[end] = lines[end].replace(/\s+$/, '') + ' \\';
+    lines.splice(end + 1, 0, '    ' + argText);
+  }
+  return lines.join('\n');
+}
+
+// For every to-be-appended feature, add its args to each `vllm serve` command
+// in the rendered markdown. Skips blocks that already contain the flags.
+function appendFeatureArgs(content: string, feats: Array<[string, FeatureMeta]>): string {
+  if (!feats.length) return content;
+  return content.replace(/```(\w+)?\n([\s\S]*?)```/g, (m, lang: string, code: string) => {
+    if (!/^\s*vllm serve\b/m.test(code)) return m;
+    let out = code;
+    for (const [key, f] of feats) {
+      const argText = (f.args ?? []).map(renderArg).join(' ');
+      const envLines = Object.entries(f.env ?? {}).map(([k, v]) => `export ${k}=${v}`);
+      const tokens = featureArgTokens(f);
+      const envs = featureEnvTokens(f);
+      // Never duplicate a flag the baseline already carries.
+      if (tokens.length && tokens.every((t) => out.includes(t))) continue;
+      if (envs.length && envs.every((k) => new RegExp(`^\\s*export ${k}=`, 'm').test(out)))
+        continue;
+      if (argText) {
+        out = appendToServeCommand(out, `%%HL:${key}%%${argText}%%/HL:${key}%%`);
+      }
+      if (envLines.length) {
+        const indent = out.match(/^[ \t]*(?=vllm serve\b)/m)?.[0] ?? '';
+        const exports = envLines.map((l) => `%%HL:${key}%%${l}%%/HL:${key}%%`).join('\n' + indent);
+        out = out.replace(/^([ \t]*)(vllm serve\b)/m, `$1${exports}\n$1$2`);
+      }
+    }
+    return '```' + (lang || '') + '\n' + out + '```';
+  });
+}
+
 // Substitute {{name}}:
 //   feature toggle -> renderFeature (args/env or flag_when_false), colored
 //   config value  -> render the value
@@ -124,6 +380,27 @@ function applyConfigParams(
     }
     return String(value ?? '');
   });
+}
+
+function initialParamValues(
+  params: Record<string, ConfigParam> | undefined,
+  toggleFeatures: Record<string, FeatureMeta>,
+  optInFeatures: string[] | undefined,
+  featureModes: Record<string, 'toggle' | 'extra' | 'builtin'>,
+): Record<string, unknown> {
+  const init: Record<string, unknown> = {};
+  for (const [key, p] of Object.entries(params ?? {})) {
+    init[key] = p.default;
+  }
+  for (const key of Object.keys(toggleFeatures)) {
+    init[key] = !(optInFeatures ?? []).includes(key);
+  }
+  // 'extra' features default OFF so the page first renders the exact
+  // tutorial baseline; opting in appends their args.
+  for (const [key, mode] of Object.entries(featureModes)) {
+    if (mode === 'extra') init[key] = false;
+  }
+  return init;
 }
 
 // ---- Markdown renderer ----
@@ -293,6 +570,10 @@ const CONFIG_COLORS: Record<string, string> = {
   cpu_binding: 'text-cyan-400',
   'dsa-cp': 'text-orange-400',
   multistream_overlap: 'text-pink-400',
+  tool_calling: 'text-teal-400',
+  reasoning: 'text-fuchsia-400',
+  expert_parallel: 'text-emerald-400',
+  mlapo: 'text-orange-400',
 };
 
 // Friendly labels for config_param bool toggles (shown on the chip itself).
@@ -304,6 +585,15 @@ const CONFIG_LABELS: Record<string, string> = {
   async_scheduling: 'Async Scheduling',
   flashcomm1: 'FlashComm1',
 };
+
+// Humanize a feature key for chips without an explicit label (expert_parallel
+// -> "Expert Parallel").
+function prettifyKey(key: string): string {
+  return key
+    .split('_')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
 
 // ---- Config placeholder replacer ----
 // Replaces %%CONFIG:key%%...%%/CONFIG:key%% blocks based on selected configs.
@@ -366,6 +656,9 @@ export default function CascadeSelector({
   featuresZh,
   optInFeaturesEn,
   optInFeaturesZh,
+  variantsEn,
+  variantsZh,
+  hardwareStatus,
   selectorLabelsEn,
   selectorLabelsZh,
   pdCluster,
@@ -379,6 +672,7 @@ export default function CascadeSelector({
   const configParams =
     lang === 'zh' ? (configParamsZh ?? configParamsEn) : (configParamsEn ?? configParamsZh);
   const features = lang === 'zh' ? (featuresZh ?? featuresEn) : (featuresEn ?? featuresZh);
+  const variants = lang === 'zh' ? (variantsZh ?? variantsEn) : (variantsEn ?? variantsZh);
   const optInFeatures =
     lang === 'zh' ? (optInFeaturesZh ?? optInFeaturesEn) : (optInFeaturesEn ?? optInFeaturesZh);
   // Config-panel toggles = features referenced by the recipe steps
@@ -401,16 +695,31 @@ export default function CascadeSelector({
     }
     return out;
   }, [features, referencedKeys]);
-  const [paramValues, setParamValues] = useState<Record<string, unknown>>(() => {
-    const init: Record<string, unknown> = {};
-    for (const [key, p] of Object.entries(configParams ?? {})) {
-      init[key] = p.default;
+
+  // Per-feature rendering mode, classifying how every step relates to it:
+  //   'toggle'   — referenced via {{}}/%%CONFIG%% markers: the placeholder
+  //                substitution owns rendering (both on and off states)
+  //   'extra'    — never referenced and never hardcoded: default-off toggle;
+  //                enabling appends the feature's args to the serve command
+  //   'builtin'  — hardcoded in every step (or mixed hardcoding): shown
+  //                always-on, not toggleable — matches the recipe baseline
+  const featureModes = useMemo(() => {
+    const out: Record<string, 'toggle' | 'extra' | 'builtin'> = {};
+    for (const [key, f] of Object.entries(features ?? {})) {
+      if (referencedKeys.has(key)) {
+        out[key] = 'toggle';
+        continue;
+      }
+      let present = 0;
+      for (const s of scenarios) {
+        for (const st of s.steps) {
+          if (featureHandledIn(st.content, key, f) === 'present') present++;
+        }
+      }
+      out[key] = present > 0 ? 'builtin' : 'extra';
     }
-    for (const key of Object.keys(toggleFeatures)) {
-      init[key] = !(optInFeatures ?? []).includes(key);
-    }
-    return init;
-  });
+    return out;
+  }, [features, scenarios, referencedKeys]);
 
   const npus = useMemo(() => {
     const set = new Set<string>();
@@ -468,6 +777,18 @@ export default function CascadeSelector({
       s.case === effectiveCase,
   );
 
+  const effectiveConfigParams = useMemo(
+    () => ({
+      ...(configParams ?? {}),
+      ...(currentScenario?.config_params ?? {}),
+    }),
+    [configParams, currentScenario],
+  );
+
+  const [paramValues, setParamValues] = useState<Record<string, unknown>>(() =>
+    initialParamValues(effectiveConfigParams, toggleFeatures, optInFeatures, featureModes),
+  );
+
   // Step tab state — reset when scenario changes (adjust during render, per
   // https://react.dev/reference/react/useState#storing-information-from-previous-renders)
   const [activeStep, setActiveStep] = useState(0);
@@ -475,6 +796,9 @@ export default function CascadeSelector({
   if (currentScenario !== trackedScenario) {
     setTrackedScenario(currentScenario);
     setActiveStep(0);
+    setParamValues(
+      initialParamValues(effectiveConfigParams, toggleFeatures, optInFeatures, featureModes),
+    );
   }
 
   // PD-cluster interactive state: node index (within the active role) and
@@ -510,7 +834,7 @@ export default function CascadeSelector({
   };
 
   const chipClass = (active: boolean) =>
-    `px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer ${
+    `px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer inline-flex items-center ${
       active
         ? 'bg-accent-500/10 text-accent-400 border border-accent-500/30'
         : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
@@ -566,21 +890,30 @@ export default function CascadeSelector({
       effectiveConfigs,
       currentStep.config_values,
     );
+    // Enabled 'extra' features (never referenced by placeholders) append
+    // their args/env to the rendered `vllm serve` commands.
+    const extras: Array<[string, FeatureMeta]> = [];
+    for (const [key, f] of Object.entries(features ?? {})) {
+      if (featureModes[key] === 'extra' && paramValues[key]) extras.push([key, f]);
+    }
+    const withExtras = appendFeatureArgs(base, extras);
     return isPd
       ? substitutePdContent(
-          base,
+          withExtras,
           currentStep.title,
           pdNodeIdx,
           pdEndpoints,
           pdPrefillNodes,
           pdDecodeNodes,
         )
-      : base;
+      : withExtras;
   }, [
     currentStep,
     effectiveConfigs,
     paramValues,
     toggleFeatures,
+    features,
+    featureModes,
     isPd,
     pdNodeIdx,
     pdEndpoints,
@@ -596,147 +929,247 @@ export default function CascadeSelector({
 
   if (npus.length === 0) return null;
 
-  // ---- Build filter rows ----
-  interface FilterRow {
-    label: string;
-    options: string[];
-    selected: string;
-    onSelect: (v: string) => void;
-  }
+  // ---- Filter rows (vllm recipes-style: status dots, VRAM badges, hover info) ----
+  const rowShell = (
+    label: string,
+    hint: string | undefined,
+    children: React.ReactNode,
+    key: string,
+  ) => (
+    <div key={key} className="flex items-start gap-4 px-4 py-3 border-b border-ink-800/40">
+      <span className="shrink-0 w-24 pt-0.5 text-xs font-mono text-ink-300 inline-flex items-center gap-1.5">
+        {label}
+        {hint && <RowHint text={hint} />}
+      </span>
+      <div className="flex flex-wrap gap-1.5 min-w-0">{children}</div>
+    </div>
+  );
 
-  const rows: FilterRow[] = [
-    {
-      label: selectorLabels?.npu ?? t('labelNpu'),
-      options: npus,
-      selected: selectedNpu,
-      onSelect: setSelectedNpu,
-    },
-    {
-      label: selectorLabels?.precision ?? t('labelPrecision'),
-      options: precisions,
-      selected: effectivePrecision,
-      onSelect: setSelectedPrecision,
-    },
-    {
-      label: selectorLabels?.deployment ?? t('labelDeployment'),
-      options: deployments,
-      selected: effectiveDeployment,
-      onSelect: setSelectedDeployment,
-    },
-    {
-      label: selectorLabels?.case ?? t('labelCase'),
-      options: cases,
-      selected: effectiveCase,
-      onSelect: setSelectedCase,
-    },
-  ];
+  const npuRow = rowShell(
+    selectorLabels?.npu ?? t('labelNpu'),
+    undefined,
+    npus.map((opt) => {
+      const status = hardwareStatus?.[hwKeyForNpu(opt)];
+      const tooltip = npuInfo(opt, lang);
+      return (
+        <Tooltip key={opt} content={tooltip}>
+          <button onClick={() => setSelectedNpu(opt)} className={chipClass(selectedNpu === opt)}>
+            <StatusDot status={status} />
+            <span className="font-semibold">{opt}</span>
+          </button>
+        </Tooltip>
+      );
+    }),
+    'npu',
+  );
 
-  return (
-    <div>
-      {/* Filter panel */}
-      <div className="rounded-lg border border-ink-800/60 bg-ink-900/70 overflow-hidden mb-8">
-        {rows.map((row, ri) => (
-          <div
-            key={ri}
-            className={`flex items-start gap-4 px-4 py-3 ${
-              ri < rows.length - 1 ? 'border-b border-ink-800/40' : ''
-            }`}
+  const variantHint =
+    lang === 'zh'
+      ? '所示显存为加载模型（权重 + 运行时开销）的最低要求；服务还需额外 KV cache 显存 —— 长上下文/大并发场景通常需要 1.5–2 倍。'
+      : 'VRAM shown is the minimum to LOAD the model (weights + runtime overhead). Serving needs extra NPU memory for KV cache — long context or large batch typically needs 1.5–2× more.';
+  const precisionRow = rowShell(
+    selectorLabels?.precision ?? t('labelPrecision'),
+    variantHint,
+    precisions.map((opt) => {
+      const v = variantForPrecision(variants, opt);
+      return (
+        <Tooltip key={opt} content={variantTooltip(v, lang)}>
+          <button
+            onClick={() => setSelectedPrecision(opt)}
+            className={chipClass(effectivePrecision === opt)}
           >
-            <span className="shrink-0 w-24 pt-0.5 text-xs font-mono text-ink-300">{row.label}</span>
-            <div className="flex flex-wrap gap-1.5">
-              {row.options.map((opt) => (
+            <span className="font-semibold">{opt}</span>
+            {typeof v?.vram_minimum_gb === 'number' && (
+              <span className="ml-1.5 font-mono text-ink-500">{v.vram_minimum_gb} GB</span>
+            )}
+          </button>
+        </Tooltip>
+      );
+    }),
+    'precision',
+  );
+
+  const deploymentRow = rowShell(
+    selectorLabels?.deployment ?? t('labelDeployment'),
+    undefined,
+    deployments.map((opt) => (
+      <Tooltip key={opt} content={deploymentInfo(opt, lang)}>
+        <button
+          onClick={() => setSelectedDeployment(opt)}
+          className={chipClass(effectiveDeployment === opt)}
+        >
+          <span className="font-semibold">{opt}</span>
+        </button>
+      </Tooltip>
+    )),
+    'deployment',
+  );
+
+  const caseRow = rowShell(
+    selectorLabels?.case ?? t('labelCase'),
+    undefined,
+    cases.map((opt) => {
+      const caseScenario = scenarios.find(
+        (s) =>
+          s.npu === selectedNpu &&
+          s.precision === effectivePrecision &&
+          s.deployment === effectiveDeployment &&
+          s.case === opt,
+      );
+      const tooltip = caseScenario
+        ? caseScenario.steps.map((st, i) => `${i + 1}. ${st.title}`).join('\n')
+        : undefined;
+      return (
+        <Tooltip key={opt} content={tooltip}>
+          <button onClick={() => setSelectedCase(opt)} className={chipClass(effectiveCase === opt)}>
+            <span className="font-semibold">{opt}</span>
+          </button>
+        </Tooltip>
+      );
+    }),
+    'case',
+  );
+
+  // ---- Features row (all upstream features; vllm-style toggle pills) ----
+  const featureEntries = Object.entries(features ?? {});
+  const featureHint =
+    lang === 'zh'
+      ? '可选服务能力：开关会将对应参数注入下方命令或从中移除；已包含在教程基线命令中的选项显示为常开。'
+      : 'Optional serving capabilities — toggling injects or removes the corresponding flags in the commands below. Options baked into the recipe baseline are shown always-on.';
+  const featureTooltip = (_key: string, f: FeatureMeta, mode: string): string | undefined => {
+    const parts: string[] = [];
+    if (f.description) parts.push(f.description);
+    const lines = [
+      ...(f.args ?? []).map(renderArg),
+      ...Object.entries(f.env ?? {}).map(([k, v]) => `export ${k}=${v}`),
+    ];
+    if (lines.length) parts.push(lines.join('\n'));
+    if (mode === 'builtin') {
+      parts.push(
+        lang === 'zh'
+          ? '已包含在本教程的基线命令中 —— 始终开启。'
+          : "Included in this recipe's baseline commands — always on.",
+      );
+    } else if (mode === 'extra') {
+      parts.push(
+        lang === 'zh'
+          ? '默认关闭；开启后会将上述参数追加到下方 vllm serve 命令。'
+          : 'Off by default — enabling appends the flags above to the vllm serve command below.',
+      );
+    }
+    return parts.length ? parts.join('\n\n') : undefined;
+  };
+  const featuresRow =
+    featureEntries.length > 0
+      ? rowShell(
+          t('labelFeatures'),
+          featureHint,
+          featureEntries.map(([key, f]) => {
+            const mode = featureModes[key] ?? 'extra';
+            const isOn = mode === 'builtin' ? true : !!paramValues[key];
+            const colorClass = CONFIG_COLORS[key] || 'text-ink-400';
+            const bgClass = colorClass.replace('text-', 'bg-');
+            return (
+              <Tooltip key={key} content={featureTooltip(key, f, mode)}>
                 <button
-                  key={opt}
-                  onClick={() => row.onSelect(opt)}
-                  className={chipClass(row.selected === opt)}
+                  onClick={() =>
+                    mode !== 'builtin' && setParamValues((prev) => ({ ...prev, [key]: !prev[key] }))
+                  }
+                  aria-disabled={mode === 'builtin'}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all inline-flex items-center gap-1.5 ${
+                    mode === 'builtin' ? 'cursor-default' : 'cursor-pointer'
+                  } ${
+                    isOn
+                      ? `${colorClass} bg-accent-500/10 border border-current/30`
+                      : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
+                  }`}
                 >
-                  {opt}
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isOn ? 'opacity-100' : 'opacity-30'}`}
+                  ></span>
+                  {f.label || CONFIG_LABELS[key] || prettifyKey(key)}
                 </button>
-              ))}
-            </div>
-          </div>
-        ))}
+              </Tooltip>
+            );
+          }),
+          'features',
+        )
+      : null;
 
-        {/* Config — configurable params (values/toggles) + legacy chips */}
-        {(configParams && Object.keys(configParams).length > 0) ||
-        Object.keys(toggleFeatures).length > 0 ||
-        (extraConfig && extraConfig.length > 0) ? (
-          <div className="flex items-start gap-4 px-4 py-3 border-t border-ink-800/40">
-            <span className="shrink-0 w-24 pt-0.5 text-xs font-mono text-ink-300">Config</span>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {/* Value params — editable inputs (defaults = tutorial) */}
-              {configParams &&
-                Object.entries(configParams).map(([key, p]) =>
-                  p.type === 'bool' ? null : (
-                    <div key={key} className="flex items-center gap-2" title={p.description}>
-                      <label className="text-xs font-mono text-ink-400">{key}</label>
-                      <input
-                        type="number"
-                        step="any"
-                        value={String(paramValues[key] ?? '')}
-                        onChange={(e) =>
-                          setParamValues((prev) => ({
-                            ...prev,
-                            [key]: e.target.value === '' ? '' : Number(e.target.value),
-                          }))
-                        }
-                        className="w-24 rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs font-mono text-ink-200"
-                      />
-                    </div>
-                  ),
-                )}
+  // ---- Config row: editable value params + legacy extra_config chips ----
+  const configHint =
+    lang === 'zh'
+      ? '可编辑参数，将替换到下方命令中（默认值与教程基线一致）。'
+      : 'Editable values substituted into the commands below (defaults match the tutorial baseline).';
+  const hasConfigRow =
+    Object.keys(effectiveConfigParams).length > 0 || (extraConfig && extraConfig.length > 0);
+  const configRow = hasConfigRow
+    ? rowShell(
+        t('labelConfig'),
+        configHint,
+        <>
+          {/* Value params — editable inputs (defaults = tutorial) */}
+          {Object.entries(effectiveConfigParams).map(([key, p]) =>
+            p.type === 'bool' ? null : (
+              <Tooltip key={key} content={p.description}>
+                <div className="flex items-center gap-2 cursor-help">
+                  <label className="text-xs font-mono text-ink-400">{key}</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={String(paramValues[key] ?? '')}
+                    onChange={(e) =>
+                      setParamValues((prev) => ({
+                        ...prev,
+                        [key]: e.target.value === '' ? '' : Number(e.target.value),
+                      }))
+                    }
+                    className="w-24 rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs font-mono text-ink-200"
+                  />
+                </div>
+              </Tooltip>
+            ),
+          )}
 
-              {/* Feature toggles — colored-dot chips (upstream features; label/args/env) */}
-              {Object.entries(toggleFeatures).map(([key, f]) => {
-                const isOn = !!paramValues[key];
-                const colorClass = CONFIG_COLORS[key] || 'text-ink-400';
-                const bgClass = colorClass.replace('text-', 'bg-');
-                return (
+          {/* Legacy multi-select chips (dsa-cp — no upstream feature yet) */}
+          {extraConfig &&
+            extraConfig.map((cfg) => {
+              const isSelected = selectedConfigs.has(cfg.key);
+              const colorClass = CONFIG_COLORS[cfg.key] || 'text-ink-400';
+              const bgClass = colorClass.replace('text-', 'bg-');
+              return (
+                <Tooltip key={cfg.key} content={cfg.label}>
                   <button
-                    key={key}
-                    onClick={() => setParamValues((prev) => ({ ...prev, [key]: !prev[key] }))}
-                    title={f.description}
+                    onClick={() => toggleConfig(cfg.key)}
                     className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                      isOn
+                      isSelected
                         ? `${colorClass} bg-accent-500/10 border border-current/30`
                         : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
                     }`}
                   >
                     <span
-                      className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isOn ? 'opacity-100' : 'opacity-30'}`}
+                      className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isSelected ? 'opacity-100' : 'opacity-30'}`}
                     ></span>
-                    {f.label || CONFIG_LABELS[key] || key}
+                    {cfg.label}
                   </button>
-                );
-              })}
+                </Tooltip>
+              );
+            })}
+        </>,
+        'config',
+      )
+    : null;
 
-              {/* Legacy multi-select chips (dsa-cp — no upstream feature yet) */}
-              {extraConfig &&
-                extraConfig.map((cfg) => {
-                  const isSelected = selectedConfigs.has(cfg.key);
-                  const colorClass = CONFIG_COLORS[cfg.key] || 'text-ink-400';
-                  const bgClass = colorClass.replace('text-', 'bg-');
-                  return (
-                    <button
-                      key={cfg.key}
-                      onClick={() => toggleConfig(cfg.key)}
-                      title={cfg.label}
-                      className={`px-3 py-1.5 text-xs font-mono rounded-md transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                        isSelected
-                          ? `${colorClass} bg-accent-500/10 border border-current/30`
-                          : 'border border-ink-700/60 text-ink-400 hover:text-ink-200 hover:border-ink-600 bg-ink-900/50'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full ${bgClass} ${isSelected ? 'opacity-100' : 'opacity-30'}`}
-                      ></span>
-                      {cfg.label}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        ) : null}
+  return (
+    <div>
+      {/* Filter panel */}
+      <div className="rounded-lg border border-ink-800/60 bg-ink-900/70 overflow-hidden mb-8">
+        {npuRow}
+        {precisionRow}
+        {deploymentRow}
+        {caseRow}
+        {featuresRow}
+        {configRow}
       </div>
 
       {/* Result panel */}
