@@ -93,9 +93,13 @@ def main() -> int:
                 elif not file_zh.strip() or file_zh == en:
                     reason = "untranslated"
 
-            # Identifier / brand / numeric labels are legitimately kept in
-            # English (zh == en); don't count them as pending translation work.
-            if reason in ("untranslated", "new") and tc.is_untranslatable(path_str, en):
+            # "untranslated" means en is unchanged but zh is still English: that
+            # is 存量 and zh only changes when en changes, so leave it alone.
+            # "new" fields that are brand names / proper nouns / numbers are
+            # copied verbatim (no LLM); other new fields are translated.
+            if reason == "untranslated":
+                reason = None
+            elif reason == "new" and tc.is_untranslatable(path_str, en):
                 reason = None
 
             if reason is None:
