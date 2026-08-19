@@ -6,6 +6,9 @@ dist/
 __pycache__/
 *.pyc
 
+# translation pipeline working dir (inter-stage JSON manifests)
+.translate/
+
 # dependencies
 node_modules/
 
