@@ -67,6 +67,11 @@ export interface ScenarioStep {
   config_values?: Record<string, { enabled: string; disabled: string }>;
 }
 
+export interface ScenarioScript {
+  language: string;
+  content: string;
+}
+
 export interface ExtraConfigItem {
   key: string;
   label: string;
@@ -80,12 +85,16 @@ export interface ScenarioSelectorLabels {
 }
 
 export interface Scenario {
+  test_id?: string;
   npu: string;
   precision: string;
   deployment: string;
   case: string;
   tags?: string[];
   strategy?: string;
+  npu_per_node?: number;
+  aisbench?: Array<'accuracy' | 'performance'>;
+  scripts?: Record<string, ScenarioScript>;
   steps: ScenarioStep[];
   default_configs?: string[];
   config_params?: Record<string, ConfigParam>;

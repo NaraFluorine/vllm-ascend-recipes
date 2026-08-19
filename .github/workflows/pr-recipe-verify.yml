@@ -62,17 +62,20 @@ jobs:
           MODEL_FILES="${{ steps.filter.outputs.models_files }}"
           echo "All changed model files: $MODEL_FILES"
           EN_RECIPES=$(echo "$MODEL_FILES" | tr ',' '\n' | grep '^models/en/.*\.\(yaml\|yml\)$' || true)
-          # Only trigger deployment verify for whitelisted models (see
-          # .github/recipe-verify-whitelist.txt — the single global whitelist
-          # shared with multinode-recipe-verify.yml).
-          VERIFY_RECIPES=$(echo "$EN_RECIPES" | grep -E -f <(grep -vE '^\s*(#|$)' .github/recipe-verify-whitelist.txt) || true)
+          # These standalone templates are verified only by verify_multi_node;
+          # do not pass them to the legacy single-node deployment workflow.
+          LEGACY_RECIPES=$(echo "$EN_RECIPES" | grep -Ev \
+            '^(models/en/DeepSeek/template_pd\.yaml|models/en/Qwen/template2_non_pd\.yaml)$' || true)
+          # Only trigger deployment verify for whitelisted models. The legacy
+          # multi-node workflow reads the same global whitelist.
+          VERIFY_RECIPES=$(echo "$LEGACY_RECIPES" | grep -E -f <(grep -vE '^\s*(#|$)' .github/recipe-verify-whitelist.txt) || true)
           if [ -n "$VERIFY_RECIPES" ]; then
             COUNT=$(echo "$VERIFY_RECIPES" | wc -l)
             echo "count=$COUNT" >> "$GITHUB_OUTPUT"
             FILES=$(echo "$VERIFY_RECIPES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
             echo "files=$FILES" >> "$GITHUB_OUTPUT"
             echo "Verification recipes ($COUNT): $VERIFY_RECIPES"
-            SKIPPED_RECIPES=$(echo "$EN_RECIPES" | grep -v -E -f <(grep -vE '^\s*(#|$)' .github/recipe-verify-whitelist.txt) || true)
+            SKIPPED_RECIPES=$(echo "$LEGACY_RECIPES" | grep -v -E -f <(grep -vE '^\s*(#|$)' .github/recipe-verify-whitelist.txt) || true)
             if [ -n "$SKIPPED_RECIPES" ]; then
               echo "Skipped (not in whitelist): $SKIPPED_RECIPES"
             fi
@@ -189,4 +192,3 @@ jobs:
       trigger_type: pr
       head_sha: ${{ github.event.pull_request.head.sha }}
       started_at_iso: ${{ github.event.pull_request.updated_at }}
-

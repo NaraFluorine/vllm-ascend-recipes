@@ -1,0 +1,199 @@
+meta:
+  title: "Multi-Node PD Template"
+  slug: "template-pd"
+  provider: "DeepSeek"
+  description: "A focused two-node PD-disaggregation template for the multi-node Recipe converter."
+  date_added: "2026-08-19"
+  difficulty: advanced
+  tasks: [text]
+  hardware:
+    atlas_800_a2: verified
+
+model:
+  model_id: "vllm-ascend/DeepSeek-V2-Lite-W8A8"
+  min_vllm_version: "v0.23.0rc1"
+  architecture: moe
+  parameter_count: "16B"
+  active_parameters: "2.4B"
+  context_length: 32768
+  modality: text
+
+config_params:
+  max_model_len:
+    default: 4096
+    type: number
+    description: "Maximum context length used by this template"
+  max_num_seqs:
+    default: 8
+    type: number
+    description: "Maximum concurrent sequences used by this template"
+
+overview: |-
+  This standalone Recipe is the reference input for a two-node PD-disaggregated
+  deployment. It intentionally contains only the script-backed scenario consumed
+  by the new multi-node converter.
+
+weight_download:
+  - weight_version: W8A8 (Pre-quantized)
+    sources:
+      - source: ModelScope
+        url: https://www.modelscope.cn/models/vllm-ascend/DeepSeek-V2-Lite-W8A8
+        command: |-
+          ```bash
+          pip install modelscope
+          modelscope download --model vllm-ascend/DeepSeek-V2-Lite-W8A8
+          ```
+
+env_setup:
+  container:
+    A2:
+      content: |-
+        Start the vLLM Ascend container on both nodes with the Ascend driver,
+        HCCN configuration, model cache, and two selected NPU devices mounted.
+
+scenarios:
+  - test_id: pd-2n2c
+    npu: Atlas 800I A2
+    precision: W8A8
+    deployment: pd
+    case: 1p1d
+    npu_per_node: 2
+    aisbench: [accuracy, performance]
+    scripts:
+      prefill-0-template:
+        language: bash
+        content: |-
+          # HCCL auto-discovers HCCN interfaces. Do not bind HCCL_IF_IP or
+          # socket interface variables to the management NIC.
+          export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+          export OMP_PROC_BIND=false
+          export OMP_NUM_THREADS=10
+          export TASK_QUEUE_ENABLE=1
+          export HCCL_BUFFSIZE=256
+          # launch_online_dp.py passes a logical device index as $1. Map it to
+          # the device list selected for this node (for example, 4,5).
+          IFS=',' read -r -a selected_devices <<< "${PREFILL_NODE_0_DEVICES:-0,1}"
+          export ASCEND_RT_VISIBLE_DEVICES="${selected_devices[$1]}"
+          export VLLM_ASCEND_ENABLE_FLASHCOMM1=0
+
+          vllm serve vllm-ascend/DeepSeek-V2-Lite-W8A8 \
+              --host 0.0.0.0 \
+              --port $2 \
+              --served-model-name deepseek-v2-lite \
+              --data-parallel-size $3 \
+              --data-parallel-rank $4 \
+              --data-parallel-address $5 \
+              --data-parallel-rpc-port $6 \
+              --tensor-parallel-size $7 \
+              --trust-remote-code \
+              --enable-expert-parallel \
+              --quantization ascend \
+              --max-model-len {{max_model_len}} \
+              --max-num-seqs {{max_num_seqs}} \
+              --kv-transfer-config '{"kv_connector":"MooncakeConnectorV1","kv_role":"kv_producer","kv_port":"30000","kv_connector_extra_config":{"prefill":{"dp_size":2,"tp_size":1},"decode":{"dp_size":2,"tp_size":1}}}'
+      decode-0-template:
+        language: bash
+        content: |-
+          # HCCL auto-discovers HCCN interfaces. Do not bind HCCL_IF_IP or
+          # socket interface variables to the management NIC.
+          export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+          export OMP_PROC_BIND=false
+          export OMP_NUM_THREADS=10
+          export TASK_QUEUE_ENABLE=1
+          export HCCL_BUFFSIZE=256
+          # launch_online_dp.py passes a logical device index as $1. Map it to
+          # the device list selected for this node (for example, 4,5).
+          IFS=',' read -r -a selected_devices <<< "${DECODE_NODE_0_DEVICES:-0,1}"
+          export ASCEND_RT_VISIBLE_DEVICES="${selected_devices[$1]}"
+          export VLLM_ASCEND_ENABLE_FLASHCOMM1=0
+
+          vllm serve vllm-ascend/DeepSeek-V2-Lite-W8A8 \
+              --host 0.0.0.0 \
+              --port $2 \
+              --served-model-name deepseek-v2-lite \
+              --data-parallel-size $3 \
+              --data-parallel-rank $4 \
+              --data-parallel-address $5 \
+              --data-parallel-rpc-port $6 \
+              --tensor-parallel-size $7 \
+              --trust-remote-code \
+              --enable-expert-parallel \
+              --quantization ascend \
+              --max-model-len {{max_model_len}} \
+              --max-num-seqs {{max_num_seqs}} \
+              --kv-transfer-config '{"kv_connector":"MooncakeConnectorV1","kv_role":"kv_consumer","kv_port":"30200","kv_connector_extra_config":{"prefill":{"dp_size":2,"tp_size":1},"decode":{"dp_size":2,"tp_size":1}}}'
+      prefill-0-launch:
+        language: bash
+        content: |-
+          python /vllm-workspace/vllm-ascend/examples/external_online_dp/launch_online_dp.py \
+            --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \
+            --dp-address "$PREFILL_NODE_0_IP" --dp-rpc-port 12321 --vllm-start-port 7100
+      decode-0-launch:
+        language: bash
+        content: |-
+          python /vllm-workspace/vllm-ascend/examples/external_online_dp/launch_online_dp.py \
+            --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \
+            --dp-address "$DECODE_NODE_0_IP" --dp-rpc-port 12321 --vllm-start-port 7100
+      gateway-0:
+        language: bash
+        content: |-
+          python /vllm-workspace/vllm-ascend/examples/disaggregated_prefill_v1/load_balance_proxy_server_example.py \
+            --host "$GATEWAY_NODE_0_IP" \
+            --port 38085 \
+            --prefiller-hosts "$PREFILL_NODE_0_IP" "$PREFILL_NODE_0_IP" \
+            --prefiller-ports 7100 7101 \
+            --decoder-hosts "$DECODE_NODE_0_IP" "$DECODE_NODE_0_IP" \
+            --decoder-ports 7100 7101
+      service-check:
+        language: bash
+        content: |-
+          response=$(curl --fail --silent --show-error \
+            "http://${GATEWAY_NODE_0_IP}:38085/v1/completions" \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"deepseek-v2-lite","prompt":"The future of AI is","max_tokens":50,"temperature":0}')
+
+          python3 -c 'import json, sys; assert json.load(sys.stdin)["choices"]' <<<"$response"
+    steps:
+      - title: Topology and variables
+        content: |-
+          `1p1d` means one Prefill node and one Decode node. Each node runs two
+          external-DP ranks on two NPUs (`DP=2`, `TP=1`). Set the node addresses
+          and optionally override the selected devices:
+
+          ```bash
+          export PREFILL_NODE_0_IP="${PREFILL_NODE_0_IP:-<prefill_node_0_ip>}"
+          export DECODE_NODE_0_IP="${DECODE_NODE_0_IP:-<decode_node_0_ip>}"
+          export GATEWAY_NODE_0_IP="${GATEWAY_NODE_0_IP:-$PREFILL_NODE_0_IP}"
+          export PREFILL_NODE_0_DEVICES="${PREFILL_NODE_0_DEVICES:-0,1}"
+          export DECODE_NODE_0_DEVICES="${DECODE_NODE_0_DEVICES:-0,1}"
+          ```
+      - title: Prepare Prefill rank template
+        content: |-
+          {{script:prefill-0-template}}
+      - title: Prepare Decode rank template
+        content: |-
+          {{script:decode-0-template}}
+      - title: Start Prefill, Decode, and gateway services
+        content: |-
+          ```bash
+          unset ftp_proxy
+          unset https_proxy
+          unset http_proxy
+          ```
+
+          {{script:prefill-0-launch}}
+
+          {{script:decode-0-launch}}
+
+          Start the gateway after all four rank services are ready:
+
+          {{script:gateway-0}}
+      - title: Verify the service
+        content: |-
+          {{script:service-check}}
+
+references:
+  - title: PD Disaggregation Guide (Mooncake)
+    url: https://docs.vllm.ai/projects/ascend/en/latest/tutorials/features/pd_disaggregation_mooncake_multi_node.html
+  - title: vLLM Ascend GitHub
+    url: https://github.com/vllm-project/vllm-ascend

@@ -5,6 +5,7 @@ dist/
 # python bytecode
 __pycache__/
 *.pyc
+/test/recipe/multi_node/.generated/
 
 # translation pipeline working dir (inter-stage JSON manifests)
 .translate/

@@ -231,7 +231,7 @@ scenarios:
     precision: W8A8
     deployment: 单节点-TP
     case: 高吞吐
-    tags: [a3-single]                    # pipeline routing (a2-single / a3-single / pd-multinode)
+    tags: [a3-single]                    # legacy pipeline routing
     strategy: single_node_A3             # must be listed in compatible_strategies
     default_configs:                              # optional: pre-select extra_config keys
       - mtp-spec-decoding
@@ -419,7 +419,8 @@ Pushes to `main` trigger GitHub Actions:
 - [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) — builds the static site and deploys to GitHub Pages.
 - [`.github/workflows/preview-build.yml`](.github/workflows/preview-build.yml) + [`preview-deploy.yml`](.github/workflows/preview-deploy.yml) — every PR gets a Netlify preview URL posted as a comment (artifacts expire in 3 days).
 - [`.github/workflows/pr-recipe-verify.yml`](.github/workflows/pr-recipe-verify.yml) — PR recipe validation (detect → validate → build).
-- [`.github/workflows/multinode-recipe-verify.yml`](.github/workflows/multinode-recipe-verify.yml) — multi-node PD verification: routes by `scenario.strategy` / `tags` (`pd-multinode` → this pipeline), drives the K8s cluster from the `linux-aarch64-a2b4-1` runner.
+- [`.github/workflows/multinode-recipe-verify.yml`](.github/workflows/multinode-recipe-verify.yml) — legacy multi-node PD verification, routed by `scenario.strategy` / `tags`.
+- [`.github/workflows/verify_multi_node.yaml`](.github/workflows/verify_multi_node.yaml) — runs the current multi-node Runtime verification on eligible same-repository PRs or by manual dispatch.
 - [`.github/workflows/nightly-recipe-verify.yml`](.github/workflows/nightly-recipe-verify.yml) — scheduled full scan of all recipes, classified by hardware.
 
 Configure Pages in repo Settings → Pages → Source: **GitHub Actions**.

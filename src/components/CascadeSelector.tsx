@@ -2,7 +2,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useLang } from '../lib/useLang';
 import { resolveVllmAscendLink } from '../lib/links';
-import type { Variant } from '../lib/types';
+import { expandScenarioScripts } from '../lib/scenario-scripts';
+import type { ScenarioScript, Variant } from '../lib/types';
 import {
   roleNodeCount,
   loadPdEndpoints,
@@ -37,6 +38,7 @@ interface Scenario {
   case: string;
   tags?: string[];
   strategy?: string;
+  scripts?: Record<string, ScenarioScript>;
   steps: ScenarioStep[];
   default_configs?: string[];
   config_params?: Record<string, ConfigParam>;
@@ -81,7 +83,8 @@ interface CascadeSelectorProps {
   };
 }
 
-// Pipeline-routing tag -> display name (per language)
+// Legacy pipeline-routing tags remain visible while the new template-driven
+// multi-node flow uses test_id/scripts independently.
 const PIPELINE_LABELS: Record<string, Record<string, string>> = {
   zh: {
     'a2-single': 'A2 单机流水线',
@@ -216,7 +219,7 @@ function npuInfo(npu: string, lang: string): string | undefined {
   return key ? NPU_INFO[lang]?.[key] : undefined;
 }
 
-const DEPLOYMENT_INFO: Array<{ match: string[]; en: string; zh: string }> = [
+const LEGACY_DEPLOYMENT_INFO: Array<{ match: string[]; en: string; zh: string }> = [
   {
     match: ['hybrid', '混合'],
     en: 'Prefill-Decode hybrid deployment — prefill and decode run on the same node, which is the simplest path for production-grade throughput on one machine.',
@@ -235,16 +238,34 @@ const DEPLOYMENT_INFO: Array<{ match: string[]; en: string; zh: string }> = [
   {
     match: ['single', '单机'],
     en: 'Prefill and Decode run on the same node — simplest topology, suited to development, testing, and small-to-medium scale serving.',
-    zh: 'Prefill 与 Decode 在同一节点完成 —— 最简单的部署拓扑，适合开发、测试和中 小规模推理服务。',
+    zh: 'Prefill 与 Decode 在同一节点完成 —— 最简单的部署拓扑，适合开发、测试和中小规模推理服务。',
   },
 ];
 
 function deploymentInfo(deployment: string, lang: string): string | undefined {
-  const d = deployment.toLowerCase();
-  for (const info of DEPLOYMENT_INFO) {
-    if (info.match.some((m) => d.includes(m))) return lang === 'zh' ? info.zh : info.en;
+  if (deployment === 'pd') {
+    return lang === 'zh'
+      ? 'Prefill 与 Decode 运行在独立节点池，通过 KV cache 传输衔接。'
+      : 'Prefill and Decode run in separate node pools connected by KV cache transfer.';
+  }
+  if (deployment === 'non-pd') {
+    return lang === 'zh'
+      ? '非 PD 分离部署，模型可通过并行策略跨节点运行。'
+      : 'Non-PD-disaggregated deployment; the model may span nodes through parallelism.';
+  }
+  const normalized = deployment.toLowerCase();
+  for (const info of LEGACY_DEPLOYMENT_INFO) {
+    if (info.match.some((term) => normalized.includes(term))) {
+      return lang === 'zh' ? info.zh : info.en;
+    }
   }
   return undefined;
+}
+
+function deploymentLabel(deployment: string, lang: string): string {
+  if (deployment === 'pd') return lang === 'zh' ? 'PD 分离' : 'PD Disaggregation';
+  if (deployment === 'non-pd') return lang === 'zh' ? '非 PD 分离' : 'Non-PD';
+  return deployment;
 }
 
 // Pick the yaml variant describing a given precision pill (exact key match
@@ -363,7 +384,7 @@ function appendFeatureArgs(content: string, feats: Array<[string, FeatureMeta]>)
 // Substitute {{name}}:
 //   feature toggle -> renderFeature (args/env or flag_when_false), colored
 //   config value  -> render the value
-function applyConfigParams(
+export function applyConfigParams(
   content: string,
   params: Record<string, unknown>,
   toggleFeatures: Record<string, FeatureMeta>,
@@ -410,7 +431,7 @@ function stripRenderMarkers(content: string): string {
     .replace(/%%HL:\w[\w-]*%%|%%\/HL:\w[\w-]*%%/g, '');
 }
 
-function renderMarkdown(md: string): string {
+export function renderMarkdown(md: string): string {
   let html = md;
 
   // Strip %%CONFIG%% markers (keeping inner content) so SSR always shows full content.
@@ -682,8 +703,9 @@ export default function CascadeSelector({
     const set = new Set<string>();
     for (const s of scenarios) {
       for (const st of s.steps) {
-        for (const m of st.content.matchAll(/\{\{(\w+)\}\}/g)) set.add(m[1]);
-        for (const m of st.content.matchAll(/%%CONFIG:([\w-]+)%%/g)) set.add(m[1]);
+        const content = expandScenarioScripts(st.content, s.scripts);
+        for (const m of content.matchAll(/\{\{(\w+)\}\}/g)) set.add(m[1]);
+        for (const m of content.matchAll(/%%CONFIG:([\w-]+)%%/g)) set.add(m[1]);
       }
     }
     return set;
@@ -713,7 +735,11 @@ export default function CascadeSelector({
       let present = 0;
       for (const s of scenarios) {
         for (const st of s.steps) {
-          if (featureHandledIn(st.content, key, f) === 'present') present++;
+          if (
+            featureHandledIn(expandScenarioScripts(st.content, s.scripts), key, f) === 'present'
+          ) {
+            present++;
+          }
         }
       }
       out[key] = present > 0 ? 'builtin' : 'extra';
@@ -843,12 +869,14 @@ export default function CascadeSelector({
   // Resolve rendered content for current step (hooks must run before any
   // early return to keep call order stable across renders)
   const currentStep = currentScenario?.steps[activeStep];
-  const dep = (currentScenario?.deployment || '').toLowerCase();
+  const deployment = (currentScenario?.deployment || '').toLowerCase();
   const isPd =
     !!currentScenario &&
-    (currentScenario.strategy === 'pd_cluster' ||
+    (currentScenario.deployment === 'pd' ||
+      currentScenario.strategy === 'pd_cluster' ||
       currentScenario.tags?.includes('pd-multinode') ||
-      (dep.includes('pd') && (dep.includes('multi') || dep.includes('多节点'))));
+      (deployment.includes('pd') &&
+        (deployment.includes('multi') || deployment.includes('多节点'))));
   const hwKey = hwKeyForNpu(selectedNpu);
   const pdPrefillNodes = roleNodeCount(pdCluster?.prefill, hwKey);
   const pdDecodeNodes = roleNodeCount(pdCluster?.decode, hwKey);
@@ -885,8 +913,9 @@ export default function CascadeSelector({
 
   const rawContent = useMemo(() => {
     if (!currentStep) return '';
+    const expandedContent = expandScenarioScripts(currentStep.content, currentScenario?.scripts);
     const base = applyConfigReplace(
-      applyConfigParams(currentStep.content, paramValues, toggleFeatures),
+      applyConfigParams(expandedContent, paramValues, toggleFeatures),
       effectiveConfigs,
       currentStep.config_values,
     );
@@ -909,6 +938,7 @@ export default function CascadeSelector({
       : withExtras;
   }, [
     currentStep,
+    currentScenario,
     effectiveConfigs,
     paramValues,
     toggleFeatures,
@@ -998,7 +1028,7 @@ export default function CascadeSelector({
           onClick={() => setSelectedDeployment(opt)}
           className={chipClass(effectiveDeployment === opt)}
         >
-          <span className="font-semibold">{opt}</span>
+          <span className="font-semibold">{deploymentLabel(opt, lang)}</span>
         </button>
       </Tooltip>
     )),
@@ -1017,7 +1047,16 @@ export default function CascadeSelector({
           s.case === opt,
       );
       const tooltip = caseScenario
-        ? caseScenario.steps.map((st, i) => `${i + 1}. ${st.title}`).join('\n')
+        ? [
+            ...(caseScenario.deployment === 'pd'
+              ? [
+                  lang === 'zh'
+                    ? 'P 表示 Prefill，D 表示 Decode'
+                    : 'P means Prefill; D means Decode',
+                ]
+              : []),
+            ...caseScenario.steps.map((step, index) => `${index + 1}. ${step.title}`),
+          ].join('\n')
         : undefined;
       return (
         <Tooltip key={opt} content={tooltip}>

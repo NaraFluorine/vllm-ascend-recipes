@@ -1,0 +1,146 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: {{ lws_name }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    size: {{ node_count }}
+    restartPolicy: None
+    leaderTemplate:
+      metadata:
+        labels:
+          multi-node-run: {{ lws_name }}
+          role: leader
+      spec:
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
+        nodeSelector: &runtime-node-selector
+          node.kubernetes.io/npu.chip.name: 910B4
+        # run.sh already stops vLLM and copies plogs before writing the status
+        # file watched by the controller. Keep a short window for cancellation.
+        terminationGracePeriodSeconds: 30
+        tolerations: &runtime-tolerations
+          - key: dedicated
+            operator: Equal
+            value: night
+            effect: NoSchedule
+        affinity: &runtime-affinity
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    # A multi-node case must use distinct physical nodes even
+                    # when each Pod requests less than the node's NPU capacity.
+                    multi-node-run: {{ lws_name }}
+                topologyKey: kubernetes.io/hostname
+        containers:
+          - name: runner
+            image: {{ image }}
+            imagePullPolicy: IfNotPresent
+            workingDir: {{ run_root }}/source
+            command: &runtime-command
+              - bash
+              - -c
+              - |
+                set +e
+                bash {{ run_root }}/source/test/recipe/multi_node/scripts/k8s/run_lws.sh
+                status=$?
+                status_file={{ run_root }}/pod-status/node${LWS_WORKER_INDEX}.exit
+                printf '%s\n' "$status" > "$status_file.tmp"
+                mv "$status_file.tmp" "$status_file"
+                exec sleep infinity
+            env: &runtime-env
+              - name: MULTI_NODE_PLAN
+                value: {{ plan }}
+              - name: AIS_BENCH_ENVIRONMENT_IDENTITY
+                value: runtime={{ image }}
+              - name: PIP_INDEX_URL
+                value: http://cache-service.nginx-pypi-cache.svc.cluster.local/pypi/simple
+              - name: PIP_TRUSTED_HOST
+                value: cache-service.nginx-pypi-cache.svc.cluster.local
+              - name: MULTI_NODE_STARTUP_TIMEOUT_SECONDS
+                value: "{{ startup_timeout_seconds }}"
+              - name: MULTI_NODE_RUN_TIMEOUT_SECONDS
+                value: "{{ run_timeout_seconds }}"
+              - name: MULTI_NODE_NODE_COUNT
+                value: "{{ node_count }}"
+              - name: MULTI_NODE_RUN_ROOT
+                value: {{ run_root }}
+              - name: MULTI_NODE_ARTIFACT_ROOT
+                value: {{ run_root }}/artifacts
+              - name: MULTI_NODE_PLOG_ROOT
+                value: {{ run_root }}/plogs
+              - name: VLLM_LOGGING_LEVEL
+                value: ERROR
+              - name: VLLM_USE_MODELSCOPE
+                value: "True"
+              - name: HF_HUB_OFFLINE
+                value: "1"
+              - name: VLLM_WORKER_MULTIPROC_METHOD
+                value: spawn
+              - name: TORCH_DEVICE_BACKEND_AUTOLOAD
+                value: "0"
+            resources: &runtime-resources
+              requests:
+                huawei.com/ascend-1980: {{ npu_per_node }}
+                cpu: 8
+                memory: 128Gi
+                ephemeral-storage: 20Gi
+              limits:
+                huawei.com/ascend-1980: {{ npu_per_node }}
+                memory: 128Gi
+                ephemeral-storage: 20Gi
+            securityContext: &runtime-security-context
+              privileged: true
+            ports:
+              - name: coordinator
+                containerPort: 29599
+              - name: gateway
+                containerPort: 38085
+            volumeMounts: &runtime-volume-mounts
+              - name: shared-volume
+                mountPath: /root/.cache
+              - name: driver-tools
+                mountPath: /usr/local/Ascend/driver
+              - name: worklogs
+                mountPath: /root/ascend/log
+              - name: shm-volume
+                mountPath: /dev/shm
+        volumes: &runtime-volumes
+          - name: shared-volume
+            persistentVolumeClaim:
+              claimName: {{ pvc_name }}
+          - name: driver-tools
+            hostPath:
+              path: /usr/local/Ascend/driver
+          - name: worklogs
+            emptyDir: {}
+          - name: shm-volume
+            emptyDir:
+              medium: Memory
+              sizeLimit: 16Gi
+    workerTemplate:
+      metadata:
+        labels:
+          multi-node-run: {{ lws_name }}
+          role: worker
+      spec:
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
+        nodeSelector: *runtime-node-selector
+        terminationGracePeriodSeconds: 30
+        tolerations: *runtime-tolerations
+        affinity: *runtime-affinity
+        containers:
+          - name: runner
+            image: {{ image }}
+            imagePullPolicy: IfNotPresent
+            workingDir: {{ run_root }}/source
+            command: *runtime-command
+            env: *runtime-env
+            resources: *runtime-resources
+            securityContext: *runtime-security-context
+            volumeMounts: *runtime-volume-mounts
+        volumes: *runtime-volumes
