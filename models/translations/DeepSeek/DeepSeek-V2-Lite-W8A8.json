@@ -1,0 +1,126 @@
+{
+  "meta.description": {
+    "en": "DeepSeek-V2-Lite MoE (16B total / 2.4B active) served as a multi-node PD-separated deployment (1P1D) with W8A8 quantization and Mooncake KV transfer.",
+    "zh": "DeepSeek-V2-Lite MoE(总参 16B / 激活 2.4B)以多节点 PD 分离拓扑(1P1D)部署,W8A8 量化 + Mooncake KV 传输。"
+  },
+  "model.install.docker.note": {
+    "en": "Official Ascend image; full device/driver mounts are covered in env_setup.container.",
+    "zh": "Ascend 官方镜像;完整设备/驱动挂载见 env_setup.container。"
+  },
+  "features.expert_parallel.description": {
+    "en": "MoE expert parallelism across the DP ranks",
+    "zh": "跨 DP rank 的 MoE 专家并行"
+  },
+  "features.flashcomm1.description": {
+    "en": "FlashComm communication optimization",
+    "zh": "FlashComm 通信优化"
+  },
+  "variants.default.description": {
+    "en": "W8A8 pre-quantized weights on Atlas 800 A2",
+    "zh": "W8A8 预量化权重,适用于 Atlas 800 A2"
+  },
+  "dependencies[0].note": {
+    "en": "ModelScope is used to download the W8A8 weights",
+    "zh": "ModelScope 用于下载 W8A8 权重"
+  },
+  "config_params.max_model_len.description": {
+    "en": "Maximum context length (input + output tokens)",
+    "zh": "最大上下文长度(输入+输出 token 之和)"
+  },
+  "config_params.max_num_seqs.description": {
+    "en": "Maximum number of concurrent sequences",
+    "zh": "最大并发序列数"
+  },
+  "overview": {
+    "en": "DeepSeek-V2-Lite is the 16B-total / 2.4B-active MoE sibling of DeepSeek-V2.\nThis recipe runs it in a **multi-node PD separation** topology — one Prefill\nnode and one Decode node (1P1D), each using 2 Atlas 800I A2 cards\n(`TP=1 + DP=2`), with W8A8 quantized weights and Mooncake-based KV transfer\nbetween the two nodes.\n\nThis is the lightest PD topology covered by the multi-node recipe verify\npipeline, and it is the CI end-to-end check for `scripts/multinode/`.",
+    "zh": "DeepSeek-V2-Lite 是 DeepSeek-V2 的 16B 总参 / 2.4B 激活 MoE 轻量版。\n本 recipe 以**多节点 PD 分离**拓扑部署——1 个 Prefill 节点 + 1 个 Decode 节点(1P1D),每个节点使用 2 张 Atlas 800I A2 卡\n(`TP=1 + DP=2`),W8A8 量化权重,节点间通过 Mooncake 进行 KV 传输。\n\n这是多节点 recipe 验证流水线覆盖的最轻量 PD 拓扑,也是 `scripts/multinode/` 的 CI 端到端检查项。"
+  },
+  "weight_download[0].weight_version": {
+    "en": "W8A8 (Pre-quantized)",
+    "zh": "W8A8(预量化)"
+  },
+  "prerequisites[0].title": {
+    "en": "Model Weight",
+    "zh": "模型权重"
+  },
+  "prerequisites[0].content": {
+    "en": "- W8A8 weights: `vllm-ascend/DeepSeek-V2-Lite-W8A8` (pre-quantized, hosted on [ModelScope](https://www.modelscope.cn/models/vllm-ascend/DeepSeek-V2-Lite-W8A8)).\n- Requires 2 Atlas 800I A2 (64G × 8) nodes; download the weights to the shared cache (`/root/.cache/`) on each node.",
+    "zh": "- W8A8 权重:`vllm-ascend/DeepSeek-V2-Lite-W8A8`(预量化,[ModelScope](https://www.modelscope.cn/models/vllm-ascend/DeepSeek-V2-Lite-W8A8))。\n- 需要 2 台 Atlas 800I A2(64G × 8)节点;在每个节点上将权重下载到共享缓存(`/root/.cache/`)。"
+  },
+  "prerequisites[1].title": {
+    "en": "Verify Multi-node Communication",
+    "zh": "验证多节点通信"
+  },
+  "prerequisites[1].content": {
+    "en": "Verify multi-node communication first: [verify multi-node communication environment](../../installation.md#verify-multi-node-communication).",
+    "zh": "先验证多节点通信:[验证多节点通信环境](../../installation.md#verify-multi-node-communication)。"
+  },
+  "env_setup.container.A2.content": {
+    "en": "Select the A2 image and start the docker container on each node, refer to [using docker](../../installation.md#set-up-using-docker).\n\nThis scenario uses **2 NPUs per node**; expose `davinci0`/`davinci1` (adjust if your cards use different indexes):\n\n```bash\nexport IMAGE=quay.io/ascend/vllm-ascend:v0.23.0rc1\ndocker run --rm \\\n    --name vllm-ascend \\\n    --shm-size=64g \\\n    --net=host \\\n    --device /dev/davinci0 \\\n    --device /dev/davinci1 \\\n    --device /dev/davinci_manager \\\n    --device /dev/devmm_svm \\\n    --device /dev/hisi_hdc \\\n    -v /usr/local/dcmi:/usr/local/dcmi \\\n    -v /usr/local/Ascend/driver/tools/hccn_tool:/usr/local/Ascend/driver/tools/hccn_tool \\\n    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \\\n    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \\\n    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \\\n    -v /etc/ascend_install.info:/etc/ascend_install.info \\\n    -v /etc/hccn.conf:/etc/hccn.conf \\\n    -it $IMAGE bash\n```",
+    "zh": "选择 A2 镜像并在每个节点启动容器,参考[使用 Docker](../../installation.md#set-up-using-docker)。\n\n本场景每个节点使用 **2 张 NPU**;暴露 `davinci0`/`davinci1`(若您的卡索引不同请调整):\n\n```bash\nexport IMAGE=quay.io/ascend/vllm-ascend:v0.23.0rc1\ndocker run --rm \\\n    --name vllm-ascend \\\n    --shm-size=64g \\\n    --net=host \\\n    --device /dev/davinci0 \\\n    --device /dev/davinci1 \\\n    --device /dev/davinci_manager \\\n    --device /dev/devmm_svm \\\n    --device /dev/hisi_hdc \\\n    -v /usr/local/dcmi:/usr/local/dcmi \\\n    -v /usr/local/Ascend/driver/tools/hccn_tool:/usr/local/Ascend/driver/tools/hccn_tool \\\n    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \\\n    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \\\n    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \\\n    -v /etc/ascend_install.info:/etc/ascend_install.info \\\n    -v /etc/hccn.conf:/etc/hccn.conf \\\n    -it $IMAGE bash\n```"
+  },
+  "env_setup.pip.content": {
+    "en": "If you don't want to use the docker image as above, install `vllm-ascend` from source on each node, refer to [installation](../../installation.md).",
+    "zh": "如果不想使用上面的 Docker 镜像,可在每个节点从源码安装 `vllm-ascend`,参考[安装文档](../../installation.md)。"
+  },
+  "scenarios[0].deployment": {
+    "en": "Multi-Node PD Separation",
+    "zh": "多节点-PD分离"
+  },
+  "scenarios[0].case": {
+    "en": "1P1D (1 Prefill node + 1 Decode node)",
+    "zh": "1P1D(1 个 Prefill 节点 + 1 个 Decode 节点)"
+  },
+  "scenarios[0].steps[0].title": {
+    "en": "Overview",
+    "zh": "概述"
+  },
+  "scenarios[0].steps[0].content": {
+    "en": "Use **2 Atlas 800 A2 nodes** — one Prefill node, one Decode node. Each node runs\n`TP=1 + DP=2`, using 2 NPUs. This is the lightest PD topology: 1P1D, 2 cards per node,\ndriven by `launch_online_dp.py` external DP (Mooncake KV transfer).",
+    "zh": "使用 **2 台 Atlas 800 A2 节点**——1 个 Prefill 节点、1 个 Decode 节点。每个节点运行\n`TP=1 + DP=2`,使用 2 张 NPU。这是最轻量的 PD 拓扑:1P1D、每节点 2 卡,\n由 `launch_online_dp.py` 外部 DP 驱动(Mooncake KV 传输)。"
+  },
+  "scenarios[0].steps[1].title": {
+    "en": "Prepare run_dp_template.sh – Prefill node",
+    "zh": "准备 run_dp_template.sh – Prefill 节点"
+  },
+  "scenarios[0].steps[1].content": {
+    "en": "Prefill node:\n\n```shell\n# HCCL auto-discovers the HCCN interfaces. Do NOT force\n# HCCL_IF_IP / socket ifnames onto the management NIC — that fails with\n# HCCL \"ERR02005 DIST internal error\" in the vllm engine.\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py passes logical device indexes; map them onto the\n# container's assigned physical devices (ASCEND_RT_VISIBLE_DEVICES).\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_producer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```",
+    "zh": "Prefill 节点:\n\n```shell\n# HCCL 会自动发现 HCCN 网卡。不要强制把 HCCL_IF_IP / socket ifname\n# 绑定到管理网卡——否则会在 vllm 引擎中报 HCCL \"ERR02005 DIST internal error\"。\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py 传入逻辑设备索引;映射到容器分配的实际物理设备\n# (ASCEND_RT_VISIBLE_DEVICES)。\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_producer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```"
+  },
+  "scenarios[0].steps[2].title": {
+    "en": "Prepare run_dp_template.sh – Decode node",
+    "zh": "准备 run_dp_template.sh – Decode 节点"
+  },
+  "scenarios[0].steps[2].content": {
+    "en": "Decode node:\n\n```shell\n# HCCL auto-discovers the HCCN interfaces. Do NOT force\n# HCCL_IF_IP / socket ifnames onto the management NIC — that fails with\n# HCCL \"ERR02005 DIST internal error\" in the vllm engine.\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py passes logical device indexes; map them onto the\n# container's assigned physical devices (ASCEND_RT_VISIBLE_DEVICES).\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_consumer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```",
+    "zh": "Decode 节点:\n\n```shell\n# HCCL 会自动发现 HCCN 网卡。不要强制把 HCCL_IF_IP / socket ifname\n# 绑定到管理网卡——否则会在 vllm 引擎中报 HCCL \"ERR02005 DIST internal error\"。\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py 传入逻辑设备索引;映射到容器分配的实际物理设备\n# (ASCEND_RT_VISIBLE_DEVICES)。\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_consumer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```"
+  },
+  "scenarios[0].steps[3].title": {
+    "en": "Start the service",
+    "zh": "启动服务"
+  },
+  "scenarios[0].steps[3].content": {
+    "en": "```bash\n# p0 (Prefill node 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.1 --dp-rpc-port 12321 --vllm-start-port 7100\n# d0 (Decode node 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.2 --dp-rpc-port 12321 --vllm-start-port 7100\n```",
+    "zh": "```bash\n# p0(Prefill 节点 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.1 --dp-rpc-port 12321 --vllm-start-port 7100\n# d0(Decode 节点 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.2 --dp-rpc-port 12321 --vllm-start-port 7100\n```"
+  },
+  "scenarios[0].steps[4].title": {
+    "en": "Service Verification",
+    "zh": "服务验证"
+  },
+  "scenarios[0].steps[4].content": {
+    "en": "```bash\n# Query the prefill node's OpenAI-compatible endpoint (or the proxy if deployed)\ncurl -s http://<node0_ip>:7100/v1/models\n# Send a chat completion to confirm prefill/decode are cooperating\ncurl -s http://<node0_ip>:7100/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"dsv2\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}], \"max_tokens\": 16}'\n```",
+    "zh": "```bash\n# 查询 Prefill 节点的 OpenAI 兼容端点(或已部署的代理)\ncurl -s http://<node0_ip>:7100/v1/models\n# 发送 chat completion 确认 prefill/decode 协同工作\ncurl -s http://<node0_ip>:7100/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"dsv2\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}], \"max_tokens\": 16}'\n```"
+  },
+  "references[0].title": {
+    "en": "ModelScope Model Download",
+    "zh": "ModelScope 模型下载"
+  },
+  "references[1].title": {
+    "en": "PD Disaggregation Guide (Mooncake)",
+    "zh": "PD 分离指南(Mooncake)"
+  },
+  "references[2].title": {
+    "en": "vllm-ascend GitHub",
+    "zh": "vllm-ascend GitHub"
+  }
+}

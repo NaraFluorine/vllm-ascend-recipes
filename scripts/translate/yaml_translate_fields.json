@@ -1,0 +1,32 @@
+{
+  "_comment": "Translatable field allowlist (deny-by-default). Paths use `.` for map keys, `*` for any map key, `[]` for any list index. Only string leaves matching these patterns are translated; every other field (model_id, url, command, args, base_env, placeholders, brand names, ...) is copied verbatim.",
+  "patterns": [
+    "meta.description",
+    "meta.performance_headline",
+    "model.install.*.note",
+    "features.*.description",
+    "variants.*.description",
+    "config_params.*.description",
+    "dependencies[].note",
+    "overview",
+    "quantization.content",
+    "prerequisites[].title",
+    "prerequisites[].content",
+    "env_setup.pip.content",
+    "env_setup.container.*.content",
+    "scenarios[].deployment",
+    "scenarios[].case",
+    "scenarios[].steps[].title",
+    "scenarios[].steps[].content",
+    "scenario_selector_labels.*",
+    "verification",
+    "evaluation.accuracy.content",
+    "evaluation.performance.content",
+    "performance.accuracy",
+    "performance.benchmark",
+    "tuning",
+    "faq",
+    "references[].title",
+    "weight_download[].weight_version"
+  ]
+}
