@@ -26,6 +26,12 @@
     },
     {
       "slug": "Qwen3.5-27B-Qwen3.6-27B"
+    },
+    {
+      "slug": "template2_non_pd"
+    },
+    {
+      "slug": "template_pd"
     }
   ]
 }
