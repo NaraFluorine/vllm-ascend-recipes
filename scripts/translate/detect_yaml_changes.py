@@ -93,6 +93,11 @@ def main() -> int:
                 elif not file_zh.strip() or file_zh == en:
                     reason = "untranslated"
 
+            # Identifier / brand / numeric labels are legitimately kept in
+            # English (zh == en); don't count them as pending translation work.
+            if reason in ("untranslated", "new") and tc.is_untranslatable(path_str, en):
+                reason = None
+
             if reason is None:
                 # Up to date (memory or existing zh already valid).
                 stats["ok"] += 1

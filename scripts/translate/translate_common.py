@@ -220,6 +220,74 @@ def _has_gloss(text: str) -> bool:
     return ("(" in text and ")" in text) or ("（" in text and "）" in text)
 
 
+# --- Untranslatable (identifier / brand / numeric) detection -----------------
+#
+# Some translatable leaves are short display names — weight versions, sequence
+# labels, reference titles — that a human or the LLM legitimately keeps in
+# English (zh == en). detect_yaml_changes.py must not flag these as pending
+# "untranslated" work, otherwise the daily translate pipeline re-runs forever on
+# brand names like "vllm-ascend GitHub" or tags like "BF16" / "135K".
+
+# Brand / proper-noun / model-family tokens that are never localised.
+_BRAND_TOKENS = frozenset({
+    "vllm", "vllm-ascend", "ascend", "github", "modelscope", "huggingface",
+    "modelers", "gitcode", "atlas", "cann", "deepseek", "qwen", "glm", "thudm",
+    "zhipu", "kimi", "moonshot", "moonshotai", "eagle3", "mtp", "dflash",
+    "mooncake", "mindspore", "torch",
+})
+
+
+def _is_brand_only(title: str) -> bool:
+    """True if *title* (a reference title) contains no translatable prose word.
+
+    A word counts as prose when it is a plain lowercase word, or a Capitalised
+    common noun (Download / Model / Draft / Guide / Documentation / ...). Brand
+    names and model/version tokens are skipped, so "vllm-ascend GitHub" and
+    "Qwen3.5-27B ModelScope" are brand-only while "ModelScope Model Download"
+    and "Eagle3 Draft Model" are not.
+    """
+    title = re.sub(r"[（(][^）)]*[）)]", "", title).strip()
+    for token in re.split(r"[\s/]+", title):
+        token = token.strip(".-")
+        if not token:
+            continue
+        low = token.lower()
+        if low in _BRAND_TOKENS:
+            continue
+        # Model id / version token (contains a digit), e.g. "Qwen3.5-27B".
+        if re.fullmatch(r"\S*\d\S*", token):
+            continue
+        # Capitalised common noun: "Download", "Model", "Draft", "Guide", ...
+        if len(low) >= 4 and token[:1].isupper() and token[1:].islower():
+            return False
+        # Plain lowercase word: "download", "model", ...
+        if low.islower() and low.isalpha() and len(low) >= 3:
+            return False
+    return True
+
+
+def is_untranslatable(path_str: str, en: str) -> bool:
+    """True if *en* may legitimately stay verbatim in the zh mirror (zh == en).
+
+    Used by detect_yaml_changes.py to avoid counting identifier / brand /
+    numeric labels as pending "untranslated" work.
+    """
+    text = en.strip()
+    if not text:
+        return False
+    # Purely numeric sequence-length labels: "20K", "135K", "250K", "1M".
+    if re.fullmatch(r"\d+(?:\.\d+)?[KMG]?", text):
+        return True
+    # Identifier-style fields (weight versions, selector labels): the name part
+    # stays English; only a parenthetical qualifier is translated.
+    if _IDENTIFIER_FIELD_RE.match(path_str) and not _has_gloss(text):
+        return True
+    # Brand-only reference titles.
+    if path_str.startswith("references[") and path_str.endswith("].title"):
+        return _is_brand_only(text)
+    return False
+
+
 def protected_tokens(text: str) -> list[str]:
     """Return machine-consumed tokens that must survive translation verbatim."""
     tokens: list[str] = []
