@@ -1,0 +1,431 @@
+name: Reusable multi-node framework
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Human-readable case name used for jobs and artifacts
+        required: true
+        type: string
+      recipe:
+        description: Multi-node template Recipe converted before execution
+        required: true
+        type: string
+      test_id:
+        description: Exact scenario selected from the template Recipe
+        required: true
+        type: string
+    secrets:
+      KUBECONFIG_B64:
+        required: true
+      OBS_AK:
+        required: false
+      OBS_SK:
+        required: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # The ARC container hook otherwise executes run steps with /bin/sh.
+    shell: bash -el {0}
+
+concurrency:
+  # All cases share host-network service ports in the same cluster. Serialize
+  # them until the runtime can safely isolate those ports per case.
+  group: multi-node-a2b4-k8s
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: verify
+    runs-on: linux-aarch64-a2b4-1
+    env:
+      RUNTIME_IMAGE: swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1
+      POD_START_TIMEOUT_SECONDS: 900
+      STARTUP_TIMEOUT_SECONDS: 1800
+      RUN_TIMEOUT_SECONDS: 7200
+      FAILURE_SETTLE_TIMEOUT_SECONDS: 120
+      # Raw Kubernetes objects contain internal infrastructure metadata. Keep
+      # collection available for controlled debugging, but disabled by default.
+      MULTI_NODE_UPLOAD_K8S_DIAGNOSTICS: "false"
+      PVC_NAME: vllm-ascend-vllm-ascend-recipes-gy001
+    # 15m scheduling + 30m startup + 120m execution, with cleanup/upload margin.
+    timeout-minutes: 180
+    container:
+      image: swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:nightly-cpu-py3.12
+      env:
+        KUBECONFIG: /tmp/kubeconfig
+        NAMESPACE: vllm-ascend-vllm-ascend-recipes
+    steps:
+      - name: Initialize diagnostics
+        id: initialize
+        env:
+          CASE_NAME: ${{ inputs.name }}
+        run: |
+          set -euo pipefail
+          bundle=/tmp/multi-node-bundle
+          # Self-hosted runners can reuse /tmp. Start from an empty bundle so a
+          # previous run cannot leak stale diagnostics into this artifact.
+          rm -rf -- "$bundle"
+          mkdir -p "$bundle"
+          plan_name=$CASE_NAME
+          plan_slug=$(printf '%s' "$plan_name" | tr '[:upper:]_' '[:lower:]-' | \
+            tr -cs 'a-z0-9-' '-' | sed 's/^-*//; s/-*$//')
+          [[ -n "$plan_slug" ]] || plan_slug=plan
+          unique_suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          max_plan_length=$((63 - ${#unique_suffix} - 1))
+          plan_slug=${plan_slug:0:max_plan_length}
+          plan_slug=${plan_slug%-}
+          lws_name="${plan_slug}-${unique_suffix}"
+          run_root="/root/.cache/multi-node/$lws_name"
+
+          {
+            echo "LWS_NAME=$lws_name"
+            echo "PLAN_NAME=$plan_name"
+            echo "MULTI_NODE_BUNDLE=$bundle"
+            echo "MULTI_NODE_RUN_ROOT=$run_root"
+          } >> "$GITHUB_ENV"
+          echo "artifact_name=${plan_name}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "Initialized diagnostics for $CASE_NAME"
+
+      - name: Decode kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBECONFIG_B64"
+          printf '%s' "$KUBECONFIG_B64" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Check cluster access
+        run: |
+          set -euo pipefail
+          kubectl --kubeconfig "$KUBECONFIG" get namespace "$NAMESPACE"
+
+      - name: Checkout recipes
+        uses: actions/checkout@v7
+
+      - name: Install controller dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install pyyaml --quiet
+
+      - name: Convert multi-node template
+        env:
+          RECIPE: ${{ inputs.recipe }}
+          TEST_ID: ${{ inputs.test_id }}
+        run: |
+          set -euo pipefail
+          conversion_output=$(python3 test/recipe/multi_node/convert.py \
+            --recipe "$RECIPE" \
+            --test-id "$TEST_ID")
+          echo "$conversion_output"
+          bundle_path=${conversion_output#Generated }
+          [[ "$bundle_path" != "$conversion_output" && -f "$bundle_path/plan.yaml" ]] || {
+            echo "Converter did not produce a plan: $conversion_output" >&2
+            exit 1
+          }
+          case "$bundle_path" in
+            "$GITHUB_WORKSPACE"/*) bundle=${bundle_path#"$GITHUB_WORKSPACE"/} ;;
+            *) echo "Generated bundle is outside the workspace: $bundle_path" >&2; exit 1 ;;
+          esac
+          echo "PLAN=$bundle/plan.yaml" >> "$GITHUB_ENV"
+
+      - name: Prepare run identity and stage source
+        id: prepare
+        run: |
+          set -euo pipefail
+          read -r node_count npu_per_node < <(
+            PLAN_PATH="$PLAN" PYTHONPATH=test/recipe/multi_node/scripts python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          from plan import load_plan
+
+          plan = load_plan(Path(os.environ["PLAN_PATH"]))
+          print(len(plan.nodes), plan.resources.npu_per_node)
+          PY
+          )
+          case "$MULTI_NODE_RUN_ROOT" in
+            /root/.cache/multi-node/*) ;;
+            *) echo "Unsafe run root: $MULTI_NODE_RUN_ROOT" >&2; exit 1 ;;
+          esac
+          rm -rf -- "$MULTI_NODE_RUN_ROOT"
+          mkdir -p "$MULTI_NODE_RUN_ROOT/source" "$MULTI_NODE_RUN_ROOT/pod-status"
+          cp -a "$GITHUB_WORKSPACE"/. "$MULTI_NODE_RUN_ROOT/source/"
+
+          : > /tmp/lws-pods.txt
+          for ((index = 0; index < node_count; index++)); do
+            if [[ $index -eq 0 ]]; then
+              pod="${LWS_NAME}-0"
+            else
+              pod="${LWS_NAME}-0-${index}"
+            fi
+            echo "$pod" >> /tmp/lws-pods.txt
+          done
+
+          {
+            echo "MULTI_NODE_NODE_COUNT=$node_count"
+            echo "MULTI_NODE_NPU_PER_NODE=$npu_per_node"
+          } >> "$GITHUB_ENV"
+
+      - name: Render and launch LeaderWorkerSet
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          values = {
+              "lws_name": os.environ["LWS_NAME"],
+              "namespace": os.environ["NAMESPACE"],
+              "image": os.environ["RUNTIME_IMAGE"],
+              "run_root": os.environ["MULTI_NODE_RUN_ROOT"],
+              "plan": os.environ["PLAN"],
+              "node_count": os.environ["MULTI_NODE_NODE_COUNT"],
+              "npu_per_node": os.environ["MULTI_NODE_NPU_PER_NODE"],
+              "startup_timeout_seconds": os.environ["STARTUP_TIMEOUT_SECONDS"],
+              "run_timeout_seconds": os.environ["RUN_TIMEOUT_SECONDS"],
+              "pvc_name": os.environ["PVC_NAME"],
+          }
+          (Path(os.environ["MULTI_NODE_RUN_ROOT"]) / "lws-values.json").write_text(
+              json.dumps(values), encoding="utf-8"
+          )
+          PY
+          python3 test/recipe/multi_node/scripts/k8s/render_lws.py \
+            --template test/recipe/multi_node/scripts/k8s/lws.yaml.tmpl \
+            --values "$MULTI_NODE_RUN_ROOT/lws-values.json" \
+            --output "$MULTI_NODE_RUN_ROOT/lws.yaml"
+          kubectl apply -f "$MULTI_NODE_RUN_ROOT/lws.yaml"
+
+      - name: Wait for LWS pods to start
+        run: |
+          set -euo pipefail
+          mapfile -t pods < /tmp/lws-pods.txt
+          pod_resources=()
+          for pod in "${pods[@]}"; do
+            pod_resources+=("pod/$pod")
+          done
+          deadline=$((SECONDS + POD_START_TIMEOUT_SECONDS))
+          remaining=$((deadline - SECONDS))
+          kubectl wait "${pod_resources[@]}" -n "$NAMESPACE" \
+            --for=create --timeout="${remaining}s"
+          remaining=$((deadline - SECONDS))
+          ((remaining > 0)) || { echo "Pod startup timed out" >&2; exit 1; }
+          kubectl wait "${pod_resources[@]}" -n "$NAMESPACE" \
+            --for=condition=Ready --timeout="${remaining}s"
+
+      - name: Stream logs and wait for Multi-node framework
+        id: run_framework
+        run: |
+          set -euo pipefail
+          mapfile -t pods < /tmp/lws-pods.txt
+          pids=()
+          # shellcheck disable=SC2329  # Invoked by the EXIT trap.
+          stop_streams() {
+            for pid in "${pids[@]}"; do
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+            done
+            pids=()
+          }
+          trap stop_streams EXIT
+          failure_settle_deadline=""
+
+          for index in "${!pods[@]}"; do
+            pod=${pods[$index]}
+            # Keep kubectl as the tracked background process while presenting a
+            # compact node label instead of its full pod/container prefix.
+            kubectl logs -f "$pod" -n "$NAMESPACE" \
+              > >(sed -u "s/^/[node${index}] /") 2>&1 &
+            pids+=("$!")
+          done
+
+          deadline=$((SECONDS + STARTUP_TIMEOUT_SECONDS + RUN_TIMEOUT_SECONDS))
+          while ((SECONDS < deadline)); do
+            all_finished=true
+            for index in "${!pods[@]}"; do
+              status_file="$MULTI_NODE_RUN_ROOT/pod-status/node${index}.exit"
+              if [[ -f "$status_file" ]]; then
+                exit_code=$(<"$status_file")
+                if [[ "$exit_code" != 0 && -z "$failure_settle_deadline" ]]; then
+                  failure_settle_deadline=$((SECONDS + FAILURE_SETTLE_TIMEOUT_SECONDS))
+                  echo "node${index} failed with exit code $exit_code; waiting up to ${FAILURE_SETTLE_TIMEOUT_SECONDS}s for other nodes to finalize"
+                fi
+              else
+                all_finished=false
+              fi
+            done
+            if [[ "$all_finished" == true ]]; then
+              break
+            fi
+            if [[ -n "$failure_settle_deadline" ]] && ((SECONDS >= failure_settle_deadline)); then
+              echo "Timed out waiting for all nodes to finalize after the first failure"
+              break
+            fi
+            sleep 5
+          done
+
+          stop_streams
+          trap - EXIT
+
+          failed=0
+          for index in "${!pods[@]}"; do
+            status_file="$MULTI_NODE_RUN_ROOT/pod-status/node${index}.exit"
+            if [[ -f "$status_file" ]]; then
+              exit_code=$(<"$status_file")
+            else
+              exit_code=
+            fi
+            echo "Multi-node framework node exit code: node${index}=${exit_code:-not-finished}"
+            [[ "$exit_code" == 0 ]] || failed=1
+          done
+          exit "$failed"
+
+      - name: Print Kubernetes summary
+        if: always() && steps.prepare.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set -u
+          # Keep only the status needed to distinguish scheduling, startup, and
+          # process failures. Do not persist raw objects: they contain internal
+          # node/IP, image, volume, and environment metadata.
+          echo "LeaderWorkerSet status"
+          kubectl get leaderworkerset "$LWS_NAME" -n "$NAMESPACE" -o yaml \
+            | python3 -c '
+          import sys, yaml
+          item = yaml.safe_load(sys.stdin) or {}
+          status = item.get("status") or {}
+          print("name\treplicas\treadyReplicas\tupdatedReplicas")
+          print("\t".join(str(value) for value in (
+              (item.get("metadata") or {}).get("name", ""),
+              status.get("replicas", ""),
+              status.get("readyReplicas", ""),
+              status.get("updatedReplicas", ""),
+          )))
+          ' || true
+
+          echo "Pod status"
+          kubectl get pods -n "$NAMESPACE" -l "multi-node-run=$LWS_NAME" -o yaml \
+            | python3 -c '
+          import sys, yaml
+          print("name\tphase\tready\trestarts\twaitingReason\tterminatedReason\texitCode")
+          for item in (yaml.safe_load(sys.stdin) or {}).get("items", []):
+              metadata = item.get("metadata") or {}
+              status = item.get("status") or {}
+              containers = status.get("containerStatuses") or []
+              states = [(container.get("state") or {}) for container in containers]
+              waiting = [state.get("waiting", {}).get("reason", "") for state in states]
+              terminated = [state.get("terminated", {}) for state in states]
+              print("\t".join((
+                  str(metadata.get("name", "")),
+                  str(status.get("phase", "")),
+                  ",".join(str(container.get("ready", "")) for container in containers),
+                  ",".join(str(container.get("restartCount", 0)) for container in containers),
+                  ",".join(filter(None, waiting)),
+                  ",".join(str(state.get("reason", "")) for state in terminated if state),
+                  ",".join(str(state.get("exitCode", "")) for state in terminated if state),
+              )))
+          ' || true
+
+          echo "Kubernetes event reasons"
+          kubectl get events -n "$NAMESPACE" \
+            --field-selector "involvedObject.kind=LeaderWorkerSet,involvedObject.name=$LWS_NAME" \
+            -o custom-columns='TYPE:.type,KIND:.involvedObject.kind,NAME:.involvedObject.name,REASON:.reason' \
+            --sort-by=.lastTimestamp || true
+          while read -r pod; do
+            kubectl get events -n "$NAMESPACE" \
+              --field-selector "involvedObject.kind=Pod,involvedObject.name=$pod" \
+              -o custom-columns='TYPE:.type,KIND:.involvedObject.kind,NAME:.involvedObject.name,REASON:.reason' \
+              --sort-by=.lastTimestamp || true
+          done < /tmp/lws-pods.txt
+
+      - name: Collect Kubernetes diagnostics for upload
+        if: >-
+          always() && steps.prepare.outcome == 'success' &&
+          env.MULTI_NODE_UPLOAD_K8S_DIAGNOSTICS == 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set -u
+          k8s_directory="$MULTI_NODE_BUNDLE/k8s"
+          mkdir -p "$k8s_directory"
+          cp "$MULTI_NODE_RUN_ROOT/lws.yaml" "$k8s_directory/lws.yaml" 2>/dev/null || true
+          cp "$MULTI_NODE_RUN_ROOT/lws-values.json" "$k8s_directory/lws-values.json" 2>/dev/null || true
+          kubectl get leaderworkerset "$LWS_NAME" -n "$NAMESPACE" -o yaml \
+            > "$k8s_directory/final-lws.yaml" 2>&1 || true
+          kubectl get pods -n "$NAMESPACE" -l "multi-node-run=$LWS_NAME" -o yaml \
+            > "$k8s_directory/final-pods.yaml" 2>&1 || true
+          : > "$k8s_directory/events.log"
+          kubectl get events -n "$NAMESPACE" \
+            --field-selector "involvedObject.kind=LeaderWorkerSet,involvedObject.name=$LWS_NAME" \
+            --sort-by=.lastTimestamp >> "$k8s_directory/events.log" 2>&1 || true
+          while read -r pod; do
+            kubectl get events -n "$NAMESPACE" \
+              --field-selector "involvedObject.kind=Pod,involvedObject.name=$pod" \
+              --sort-by=.lastTimestamp >> "$k8s_directory/events.log" 2>&1 || true
+          done < /tmp/lws-pods.txt
+
+      - name: Delete LeaderWorkerSet
+        if: always() && steps.prepare.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          kubectl delete leaderworkerset "$LWS_NAME" -n "$NAMESPACE" \
+            --ignore-not-found=true --wait=false
+
+      - name: Build artifact bundle
+        if: always()
+        run: |
+          set -euo pipefail
+          bundle=${MULTI_NODE_BUNDLE:-/tmp/multi-node-bundle}
+          mkdir -p "$bundle"
+          if [[ -n "${MULTI_NODE_RUN_ROOT:-}" ]]; then
+            for directory in artifacts plogs pod-status; do
+              [[ -d "$MULTI_NODE_RUN_ROOT/$directory" ]] && \
+                cp -a "$MULTI_NODE_RUN_ROOT/$directory" "$bundle/"
+            done
+          fi
+          tar -czf /tmp/multi-node-bundle.tar.gz -C /tmp multi-node-bundle
+
+      - name: Upload Multi-node framework bundle to OBS
+        id: upload_obs
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 15
+        uses: ascend-gha-runners/artifact/upload@v0.3
+        with:
+          access_key: ${{ secrets.OBS_AK }}
+          secret_key: ${{ secrets.OBS_SK }}
+          name: ${{ steps.initialize.outputs.artifact_name || format('diagnostics-{0}', github.run_id) }}
+          path: /tmp/multi-node-bundle.tar.gz
+          retention-days: 14
+
+      - name: Upload Multi-node framework bundle to GitHub
+        id: upload_bundle
+        if: always() && steps.upload_obs.outcome != 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.initialize.outputs.artifact_name || format('diagnostics-{0}', github.run_id) }}
+          path: /tmp/multi-node-bundle.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Remove staged PVC data
+        # Source and logs have already been copied into the local artifact
+        # bundle. An upload outage must not leak per-run data on the shared PVC.
+        if: always() && steps.prepare.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          case "$MULTI_NODE_RUN_ROOT" in
+            /root/.cache/multi-node/*) rm -rf -- "$MULTI_NODE_RUN_ROOT" ;;
+            *) echo "Refusing to remove unsafe path: $MULTI_NODE_RUN_ROOT" >&2; exit 1 ;;
+          esac

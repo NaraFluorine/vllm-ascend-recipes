@@ -119,6 +119,15 @@ jobs:
             # Pick the first changed en recipe that has a PD scenario.
             RECIPE=""
             for f in $(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" -- models/ | grep '^models/en/.*\.ya\?ml$' || true); do
+              # The new template/Converter pipeline owns these exact files.
+              # Exclude them instead of teaching this legacy parser a second
+              # scenario contract (notably, "non-pd" contains the text "pd").
+              case "$f" in
+                models/en/DeepSeek/template_pd.yaml|models/en/Qwen/template2_non_pd.yaml)
+                  echo "Skipped (owned by the isolated multi-node Converter): $f"
+                  continue
+                  ;;
+              esac
               # Global deployment-verify whitelist (single-node / multi-node /
               # PD all follow .github/recipe-verify-whitelist.txt). Recipes
               # outside it never trigger the multi-node pipeline on PRs.

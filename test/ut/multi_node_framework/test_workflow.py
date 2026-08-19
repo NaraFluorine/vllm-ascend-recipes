@@ -143,7 +143,7 @@ class MultiNodeWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(
             value["concurrency"]["group"],
-            "multi-node-a2b4-k8s-${{ inputs.name }}",
+            "multi-node-a2b4-k8s",
         )
         self.assertEqual(job["timeout-minutes"], "180")
         self.assertEqual(job["env"]["MULTI_NODE_UPLOAD_K8S_DIAGNOSTICS"], "false")
@@ -176,7 +176,7 @@ class MultiNodeWorkflowTests(unittest.TestCase):
             steps["Remove staged PVC data"]["run"],
         )
 
-    def test_lws_runtime_contract_and_cross_case_node_isolation(self) -> None:
+    def test_lws_runtime_contract_and_intra_case_node_isolation(self) -> None:
         lws = render_lws()
         template = lws["spec"]["leaderWorkerTemplate"]
         leader_template = template["leaderTemplate"]
@@ -199,10 +199,6 @@ class MultiNodeWorkflowTests(unittest.TestCase):
 
         for pod_template in (leader_template, worker_template):
             self.assertEqual(
-                pod_template["metadata"]["labels"]["multi-node-framework"],
-                "true",
-            )
-            self.assertEqual(
                 pod_template["metadata"]["labels"]["multi-node-run"],
                 "multi-node-case-123-1",
             )
@@ -212,7 +208,7 @@ class MultiNodeWorkflowTests(unittest.TestCase):
         ][0]
         self.assertEqual(
             placement["labelSelector"]["matchLabels"],
-            {"multi-node-framework": "true"},
+            {"multi-node-run": "multi-node-case-123-1"},
         )
         self.assertEqual(placement["topologyKey"], "kubernetes.io/hostname")
 

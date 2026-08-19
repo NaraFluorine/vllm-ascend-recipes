@@ -16,6 +16,7 @@ jobs:
       src: ${{ steps.filter.outputs.src }}
       workflows: ${{ steps.filter.outputs.workflows }}
       config: ${{ steps.filter.outputs.config }}
+      multi_node: ${{ steps.filter.outputs.multi_node }}
     steps:
       - uses: actions/checkout@v4
       - name: Detect changed paths
@@ -29,6 +30,9 @@ jobs:
               - 'src/**'
             workflows:
               - '.github/workflows/**'
+            multi_node:
+              - 'test/recipe/multi_node/**'
+              - 'test/ut/multi_node_framework/**'
             config:
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -99,3 +103,49 @@ jobs:
 
       - name: Run actionlint
         uses: reviewdog/action-actionlint@v1
+
+  multi-node:
+    needs: detect
+    if: |
+      needs.detect.outputs.models == 'true' ||
+      needs.detect.outputs.multi_node == 'true' ||
+      needs.detect.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Multi-node framework dependencies
+        run: python -m pip install pyyaml
+
+      - name: Generate multi-node plans from isolated templates
+        run: |
+          python test/recipe/multi_node/convert.py \
+            --recipe models/en/DeepSeek/template_pd.yaml \
+            --test-id pd-2n2c
+          python test/recipe/multi_node/convert.py \
+            --recipe models/en/Qwen/template2_non_pd.yaml \
+            --test-id dp-2n2c
+
+      - name: Validate multi-node plans
+        run: |
+          find test/recipe/multi_node/.generated -name plan.yaml -print0 |
+            while IFS= read -r -d '' plan; do
+              MULTI_NODE_PLAN="$plan" MULTI_NODE_VALIDATE_ONLY=true \
+                test/recipe/multi_node/scripts/run.sh
+            done
+
+      - name: Check shell entrypoints
+        run: |
+          find test/recipe/multi_node -type f -name '*.sh' -print0 |
+            while IFS= read -r -d '' script; do
+              bash -n "$script"
+            done
+
+      - name: Run Multi-node framework unit tests
+        run: python -m unittest discover -s test/ut/multi_node_framework -v
