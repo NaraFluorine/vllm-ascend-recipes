@@ -1,0 +1,78 @@
+{
+  "meta.description": {
+    "en": "A focused two-node internal-DP template for the multi-node Recipe converter.",
+    "zh": "用于多节点 Recipe Converter 的双节点 internal-DP 模板。"
+  },
+  "config_params.max_model_len.description": {
+    "en": "Maximum context length used by this template",
+    "zh": "本模板使用的最大上下文长度"
+  },
+  "config_params.max_num_seqs.description": {
+    "en": "Maximum concurrent sequences used by this template",
+    "zh": "本模板使用的最大并发序列数"
+  },
+  "config_params.gpu_memory_utilization.description": {
+    "en": "NPU memory fraction used by this template",
+    "zh": "本模板使用的 NPU 内存比例"
+  },
+  "overview": {
+    "en": "This standalone Recipe is the reference input for a two-node non-PD internal-DP\ndeployment. It intentionally contains only the script-backed scenario consumed\nby the new multi-node converter.",
+    "zh": "这份独立 Recipe 是双节点非 PD internal-DP 部署的参考输入，只包含新多节点\nConverter 消费的 script-backed 场景，不依赖已有模型文档中的场景。"
+  },
+  "weight_download[0].weight_version": {
+    "en": "BF16",
+    "zh": "BF16"
+  },
+  "env_setup.container.A2.content": {
+    "en": "Start the vLLM Ascend container on both nodes with the Ascend driver,\nHCCN configuration, model cache, and two selected NPU devices mounted.",
+    "zh": "在两个节点上启动 vLLM Ascend 容器，并挂载 Ascend 驱动、HCCN 配置、\n模型缓存和两个选定的 NPU 设备。"
+  },
+  "scenarios[0].deployment": {
+    "en": "non-pd",
+    "zh": "non-pd"
+  },
+  "scenarios[0].case": {
+    "en": "2-node",
+    "zh": "2-node"
+  },
+  "scenarios[0].steps[0].title": {
+    "en": "Topology and variables",
+    "zh": "拓扑与变量"
+  },
+  "scenarios[0].steps[0].content": {
+    "en": "`2-node` means a two-node non-PD deployment. API node 0 hosts internal-DP\nranks 0 and 1; Headless node 0 hosts ranks 2 and 3. Each node uses two\nNPUs, giving global `DP=4` and `TP=1`. Set the API-node address and devices:\n\n```bash\nexport API_NODE_0_IP=\"${API_NODE_0_IP:-<api_node_0_ip>}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\n```",
+    "zh": "`2-node` 表示双节点非 PD 部署。API 节点 0 承载 internal-DP rank 0、1，\nHeadless 节点 0 承载 rank 2、3。每个节点使用两张 NPU，全局 `DP=4`、\n`TP=1`。请设置 API 节点地址和设备列表：\n\n```bash\nexport API_NODE_0_IP=\"${API_NODE_0_IP:-<api_node_0_ip>}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\n```"
+  },
+  "scenarios[0].steps[1].title": {
+    "en": "Start API node 0",
+    "zh": "启动 API 节点 0"
+  },
+  "scenarios[0].steps[1].content": {
+    "en": "{{script:api-0}}",
+    "zh": "{{script:api-0}}"
+  },
+  "scenarios[0].steps[2].title": {
+    "en": "Start Headless node 0",
+    "zh": "启动 Headless 节点 0"
+  },
+  "scenarios[0].steps[2].content": {
+    "en": "{{script:headless-0}}",
+    "zh": "{{script:headless-0}}"
+  },
+  "scenarios[0].steps[3].title": {
+    "en": "Verify the service",
+    "zh": "验证服务"
+  },
+  "scenarios[0].steps[3].content": {
+    "en": "{{script:service-check}}",
+    "zh": "{{script:service-check}}"
+  },
+  "references[0].title": {
+    "en": "Qwen3-30B-A3B on ModelScope",
+    "zh": "ModelScope 上的 Qwen3-30B-A3B"
+  },
+  "references[1].title": {
+    "en": "vLLM Ascend GitHub",
+    "zh": "vLLM Ascend GitHub"
+  }
+}
