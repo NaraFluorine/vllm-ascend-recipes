@@ -5,6 +5,7 @@ dist/
 # python bytecode
 __pycache__/
 *.pyc
+/test/recipe/multi_node/.generated/
 
 # dependencies
 node_modules/

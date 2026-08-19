@@ -1,0 +1,28 @@
+accuracy:
+  step_id: gsm8k
+  timeout_seconds: 7200
+  inputs:
+    case_type: accuracy
+    dataset_path: vllm-ascend/gsm8k-lite
+    dataset_conf: gsm8k/gsm8k_gen_0_shot_cot_chat_prompt
+    request_conf: vllm_api_general_chat
+    num_prompts: 1
+    max_out_len: 16
+    batch_size: 1
+    temperature: 0.01
+    dump_eval_details: true
+
+performance:
+  step_id: gsm8k-perf
+  timeout_seconds: 7200
+  inputs:
+    case_type: performance
+    dataset_path: vllm-ascend/GSM8K-in3500-bs400
+    dataset_conf: gsm8k/gsm8k_gen_0_shot_cot_str_perf
+    request_conf: vllm_api_stream_chat
+    num_prompts: 1
+    max_out_len: 16
+    batch_size: 1
+    request_rate: 0
+    temperature: 0.01
+    summarizer: default_perf

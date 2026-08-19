@@ -1,0 +1,154 @@
+meta:
+  title: "Multi-Node Non-PD Template"
+  slug: "template2-non-pd"
+  provider: "Qwen"
+  description: "A focused two-node internal-DP template for the multi-node Recipe converter."
+  date_added: "2026-08-19"
+  difficulty: advanced
+  tasks: [text]
+  hardware:
+    atlas_800_a2: verified
+
+model:
+  model_id: "Qwen/Qwen3-30B-A3B"
+  min_vllm_version: "v0.23.0rc1"
+  architecture: moe
+  parameter_count: "30.5B"
+  active_parameters: "3.3B"
+  context_length: 40960
+  modality: text
+
+config_params:
+  max_model_len:
+    default: 4096
+    type: number
+    description: "Maximum context length used by this template"
+  max_num_seqs:
+    default: 8
+    type: number
+    description: "Maximum concurrent sequences used by this template"
+  gpu_memory_utilization:
+    default: 0.9
+    type: number
+    description: "NPU memory fraction used by this template"
+
+overview: |-
+  This standalone Recipe is the reference input for a two-node non-PD internal-DP
+  deployment. It intentionally contains only the script-backed scenario consumed
+  by the new multi-node converter.
+
+weight_download:
+  - weight_version: BF16
+    sources:
+      - source: ModelScope
+        url: https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B
+        command: |-
+          ```bash
+          pip install modelscope
+          modelscope download --model Qwen/Qwen3-30B-A3B
+          ```
+
+env_setup:
+  container:
+    A2:
+      content: |-
+        Start the vLLM Ascend container on both nodes with the Ascend driver,
+        HCCN configuration, model cache, and two selected NPU devices mounted.
+
+scenarios:
+  - test_id: dp-2n2c
+    npu: Atlas 800I A2
+    precision: bf16
+    deployment: non-pd
+    case: 2-node
+    npu_per_node: 2
+    aisbench: [accuracy, performance]
+    scripts:
+      api-0:
+        language: bash
+        content: |-
+          export OMP_PROC_BIND=false
+          export OMP_NUM_THREADS=10
+          export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+          export HCCL_BUFFSIZE=1024
+          export VLLM_USE_MODELSCOPE=true
+          export ASCEND_RT_VISIBLE_DEVICES="${ASCEND_RT_VISIBLE_DEVICES:-0,1}"
+
+          vllm serve Qwen/Qwen3-30B-A3B \
+              --host "$API_NODE_0_IP" \
+              --port 7100 \
+              --served-model-name qwen3 \
+              --data-parallel-size 4 \
+              --data-parallel-size-local 2 \
+              --data-parallel-address "$API_NODE_0_IP" \
+              --data-parallel-rpc-port 12321 \
+              --tensor-parallel-size 1 \
+              --max-model-len {{max_model_len}} \
+              --max-num-seqs {{max_num_seqs}} \
+              --max-num-batched-tokens 4096 \
+              --gpu-memory-utilization {{gpu_memory_utilization}} \
+              --trust-remote-code \
+              --enable-expert-parallel \
+              --no-enable-prefix-caching \
+              --enforce-eager
+      headless-0:
+        language: bash
+        content: |-
+          export OMP_PROC_BIND=false
+          export OMP_NUM_THREADS=10
+          export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+          export HCCL_BUFFSIZE=1024
+          export VLLM_USE_MODELSCOPE=true
+          export ASCEND_RT_VISIBLE_DEVICES="${ASCEND_RT_VISIBLE_DEVICES:-0,1}"
+
+          vllm serve Qwen/Qwen3-30B-A3B \
+              --headless \
+              --data-parallel-size 4 \
+              --data-parallel-size-local 2 \
+              --data-parallel-start-rank 2 \
+              --data-parallel-address "$API_NODE_0_IP" \
+              --data-parallel-rpc-port 12321 \
+              --tensor-parallel-size 1 \
+              --max-model-len {{max_model_len}} \
+              --max-num-seqs {{max_num_seqs}} \
+              --max-num-batched-tokens 4096 \
+              --gpu-memory-utilization {{gpu_memory_utilization}} \
+              --trust-remote-code \
+              --enable-expert-parallel \
+              --no-enable-prefix-caching \
+              --enforce-eager
+      service-check:
+        language: bash
+        content: |-
+          response=$(curl --fail --silent --show-error \
+            "http://${API_NODE_0_IP}:7100/v1/completions" \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"qwen3","prompt":"The future of AI is","max_tokens":50,"temperature":0}')
+
+          python3 -c 'import json, sys; assert json.load(sys.stdin)["choices"]' <<<"$response"
+    steps:
+      - title: Topology and variables
+        content: |-
+          `2-node` means a two-node non-PD deployment. API node 0 hosts internal-DP
+          ranks 0 and 1; Headless node 0 hosts ranks 2 and 3. Each node uses two
+          NPUs, giving global `DP=4` and `TP=1`. Set the API-node address and devices:
+
+          ```bash
+          export API_NODE_0_IP="${API_NODE_0_IP:-<api_node_0_ip>}"
+          export ASCEND_RT_VISIBLE_DEVICES="${ASCEND_RT_VISIBLE_DEVICES:-0,1}"
+          ```
+      - title: Start API node 0
+        content: |-
+          {{script:api-0}}
+      - title: Start Headless node 0
+        content: |-
+          {{script:headless-0}}
+      - title: Verify the service
+        content: |-
+          {{script:service-check}}
+
+references:
+  - title: Qwen3-30B-A3B on ModelScope
+    url: https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B
+  - title: vLLM Ascend GitHub
+    url: https://github.com/vllm-project/vllm-ascend
