@@ -72,44 +72,44 @@
     "zh": "1P1D(1 个 Prefill 节点 + 1 个 Decode 节点)"
   },
   "scenarios[0].steps[0].title": {
-    "en": "Overview",
-    "zh": "概述"
+    "en": "Topology and variables",
+    "zh": "拓扑与变量"
   },
   "scenarios[0].steps[0].content": {
-    "en": "Use **2 Atlas 800 A2 nodes** — one Prefill node, one Decode node. Each node runs\n`TP=1 + DP=2`, using 2 NPUs. This is the lightest PD topology: 1P1D, 2 cards per node,\ndriven by `launch_online_dp.py` external DP (Mooncake KV transfer).",
-    "zh": "使用 **2 台 Atlas 800 A2 节点**——1 个 Prefill 节点、1 个 Decode 节点。每个节点运行\n`TP=1 + DP=2`,使用 2 张 NPU。这是最轻量的 PD 拓扑:1P1D、每节点 2 卡,\n由 `launch_online_dp.py` 外部 DP 驱动(Mooncake KV 传输)。"
+    "en": "`1P1D` means one Prefill node and one Decode node. Each node runs two\nexternal-DP ranks on two NPUs (`DP=2`, `TP=1`). Set the node addresses\nand optionally override the selected devices:\n\n```bash\nexport PREFILL_NODE_0_IP=\"${PREFILL_NODE_0_IP:-<prefill_node_0_ip>}\"\nexport DECODE_NODE_0_IP=\"${DECODE_NODE_0_IP:-<decode_node_0_ip>}\"\nexport GATEWAY_NODE_0_IP=\"${GATEWAY_NODE_0_IP:-$PREFILL_NODE_0_IP}\"\nexport PREFILL_NODE_0_DEVICES=\"${PREFILL_NODE_0_DEVICES:-0,1}\"\nexport DECODE_NODE_0_DEVICES=\"${DECODE_NODE_0_DEVICES:-0,1}\"\n```",
+    "zh": "`1P1D` 表示 1 个 Prefill 节点 + 1 个 Decode 节点。每个节点运行两个\nexternal-DP rank，使用 2 张 NPU（`DP=2`、`TP=1`）。设置节点地址并可按需\n覆盖所选设备：\n\n```bash\nexport PREFILL_NODE_0_IP=\"${PREFILL_NODE_0_IP:-<prefill_node_0_ip>}\"\nexport DECODE_NODE_0_IP=\"${DECODE_NODE_0_IP:-<decode_node_0_ip>}\"\nexport GATEWAY_NODE_0_IP=\"${GATEWAY_NODE_0_IP:-$PREFILL_NODE_0_IP}\"\nexport PREFILL_NODE_0_DEVICES=\"${PREFILL_NODE_0_DEVICES:-0,1}\"\nexport DECODE_NODE_0_DEVICES=\"${DECODE_NODE_0_DEVICES:-0,1}\"\n```"
   },
   "scenarios[0].steps[1].title": {
     "en": "Prepare run_dp_template.sh – Prefill node",
     "zh": "准备 run_dp_template.sh – Prefill 节点"
   },
   "scenarios[0].steps[1].content": {
-    "en": "Prefill node:\n\n```shell\n# HCCL auto-discovers the HCCN interfaces. Do NOT force\n# HCCL_IF_IP / socket ifnames onto the management NIC — that fails with\n# HCCL \"ERR02005 DIST internal error\" in the vllm engine.\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py passes logical device indexes; map them onto the\n# container's assigned physical devices (ASCEND_RT_VISIBLE_DEVICES).\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_producer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```",
-    "zh": "Prefill 节点:\n\n```shell\n# HCCL 会自动发现 HCCN 网卡。不要强制把 HCCL_IF_IP / socket ifname\n# 绑定到管理网卡——否则会在 vllm 引擎中报 HCCL \"ERR02005 DIST internal error\"。\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py 传入逻辑设备索引;映射到容器分配的实际物理设备\n# (ASCEND_RT_VISIBLE_DEVICES)。\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_producer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```"
+    "en": "{{script:prefill-0-template}}",
+    "zh": "{{script:prefill-0-template}}"
   },
   "scenarios[0].steps[2].title": {
     "en": "Prepare run_dp_template.sh – Decode node",
     "zh": "准备 run_dp_template.sh – Decode 节点"
   },
   "scenarios[0].steps[2].content": {
-    "en": "Decode node:\n\n```shell\n# HCCL auto-discovers the HCCN interfaces. Do NOT force\n# HCCL_IF_IP / socket ifnames onto the management NIC — that fails with\n# HCCL \"ERR02005 DIST internal error\" in the vllm engine.\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py passes logical device indexes; map them onto the\n# container's assigned physical devices (ASCEND_RT_VISIBLE_DEVICES).\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_consumer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```",
-    "zh": "Decode 节点:\n\n```shell\n# HCCL 会自动发现 HCCN 网卡。不要强制把 HCCL_IF_IP / socket ifname\n# 绑定到管理网卡——否则会在 vllm 引擎中报 HCCL \"ERR02005 DIST internal error\"。\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=10\nexport TASK_QUEUE_ENABLE=1\nexport HCCL_BUFFSIZE=256\n# launch_online_dp.py 传入逻辑设备索引;映射到容器分配的实际物理设备\n# (ASCEND_RT_VISIBLE_DEVICES)。\nIFS=',' read -r -a selected_devices <<< \"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${selected_devices[$1]}\"\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=0\n\nvllm serve your_model_path \\\n    --host 0.0.0.0 \\\n    --port $2 \\\n    --served-model-name dsv2 \\\n    --data-parallel-size $3 \\\n    --data-parallel-rank $4 \\\n    --data-parallel-address $5 \\\n    --data-parallel-rpc-port $6 \\\n    --tensor-parallel-size $7 \\\n    --trust-remote-code \\\n    --enable-expert-parallel \\\n    --quantization ascend \\\n    --max-model-len {{max_model_len}} \\\n    --max-num-seqs {{max_num_seqs}} \\\n    --kv-transfer-config '{\"kv_connector\": \"MooncakeConnectorV1\", \"kv_role\": \"kv_consumer\", \"kv_port\": \"30000\", \"engine_id\": \"0\", \"kv_connector_extra_config\": {\"prefill\": {\"dp_size\": 2, \"tp_size\": 1}, \"decode\": {\"dp_size\": 2, \"tp_size\": 1}}}'\n```"
+    "en": "{{script:decode-0-template}}",
+    "zh": "{{script:decode-0-template}}"
   },
   "scenarios[0].steps[3].title": {
     "en": "Start the service",
     "zh": "启动服务"
   },
   "scenarios[0].steps[3].content": {
-    "en": "```bash\n# p0 (Prefill node 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.1 --dp-rpc-port 12321 --vllm-start-port 7100\n# d0 (Decode node 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.2 --dp-rpc-port 12321 --vllm-start-port 7100\n```",
-    "zh": "```bash\n# p0(Prefill 节点 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.1 --dp-rpc-port 12321 --vllm-start-port 7100\n# d0(Decode 节点 0)\npython launch_online_dp.py --dp-size 2 --tp-size 1 --dp-size-local 2 --dp-rank-start 0 \\\n  --dp-address 141.xx.xx.2 --dp-rpc-port 12321 --vllm-start-port 7100\n```"
+    "en": "```bash\nunset ftp_proxy\nunset https_proxy\nunset http_proxy\n```\n\n{{script:prefill-0-launch}}\n\n{{script:decode-0-launch}}\n\nStart the gateway after both rank services are ready:\n\n{{script:gateway-0}}",
+    "zh": "```bash\nunset ftp_proxy\nunset https_proxy\nunset http_proxy\n```\n\n{{script:prefill-0-launch}}\n\n{{script:decode-0-launch}}\n\n两个 rank 服务就绪后启动 gateway：\n\n{{script:gateway-0}}"
   },
   "scenarios[0].steps[4].title": {
-    "en": "Service Verification",
-    "zh": "服务验证"
+    "en": "Verify the service",
+    "zh": "验证服务"
   },
   "scenarios[0].steps[4].content": {
-    "en": "```bash\n# Query the prefill node's OpenAI-compatible endpoint (or the proxy if deployed)\ncurl -s http://<node0_ip>:7100/v1/models\n# Send a chat completion to confirm prefill/decode are cooperating\ncurl -s http://<node0_ip>:7100/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"dsv2\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}], \"max_tokens\": 16}'\n```",
-    "zh": "```bash\n# 查询 Prefill 节点的 OpenAI 兼容端点(或已部署的代理)\ncurl -s http://<node0_ip>:7100/v1/models\n# 发送 chat completion 确认 prefill/decode 协同工作\ncurl -s http://<node0_ip>:7100/v1/chat/completions \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"dsv2\", \"messages\": [{\"role\": \"user\", \"content\": \"hello\"}], \"max_tokens\": 16}'\n```"
+    "en": "{{script:service-check}}",
+    "zh": "{{script:service-check}}"
   },
   "references[0].title": {
     "en": "ModelScope Model Download",
