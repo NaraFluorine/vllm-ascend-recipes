@@ -172,26 +172,66 @@
     "zh": "服务启动后，通过发送 prompt 验证其运行状态。使用示例请参考下方的验证部分。"
   },
   "scenarios[2].deployment": {
+    "en": "Multi-Node",
+    "zh": "多节点"
+  },
+  "scenarios[2].case": {
+    "en": "2-node",
+    "zh": "2-node"
+  },
+  "scenarios[2].steps[0].title": {
+    "en": "Topology and variables",
+    "zh": "拓扑与变量"
+  },
+  "scenarios[2].steps[0].content": {
+    "en": "`2-node` means a two-node non-PD deployment. API node 0 hosts internal-DP\nranks 0 and 1; Headless node 0 hosts ranks 2 and 3. Each node uses two\nNPUs, giving global `DP=4` and `TP=1`. Set the API-node address and devices:\n\n```bash\nexport API_NODE_0_IP=\"${API_NODE_0_IP:-<api_node_0_ip>}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\n```",
+    "zh": "`2-node` 表示两节点非 PD 部署。API 节点 0 承载 internal-DP rank 0 和 1；\nHeadless 节点 0 承载 rank 2 和 3。每节点使用 2 张 NPU，全局 `DP=4`、`TP=1`。\n设置 API 节点地址与设备：\n\n```bash\nexport API_NODE_0_IP=\"${API_NODE_0_IP:-<api_node_0_ip>}\"\nexport ASCEND_RT_VISIBLE_DEVICES=\"${ASCEND_RT_VISIBLE_DEVICES:-0,1}\"\n```"
+  },
+  "scenarios[2].steps[1].title": {
+    "en": "Start API node 0",
+    "zh": "启动 API 节点 0"
+  },
+  "scenarios[2].steps[1].content": {
+    "en": "{{script:api-0}}",
+    "zh": "{{script:api-0}}"
+  },
+  "scenarios[2].steps[2].title": {
+    "en": "Start Headless node 0",
+    "zh": "启动 Headless 节点 0"
+  },
+  "scenarios[2].steps[2].content": {
+    "en": "{{script:headless-0}}",
+    "zh": "{{script:headless-0}}"
+  },
+  "scenarios[2].steps[3].title": {
+    "en": "Verify the service",
+    "zh": "验证服务"
+  },
+  "scenarios[2].steps[3].content": {
+    "en": "{{script:service-check}}",
+    "zh": "{{script:service-check}}"
+  },
+  "scenarios[3].deployment": {
     "en": "Single-Node",
     "zh": "单节点-多卡"
   },
-  "scenarios[2].case": {
+  "scenarios[3].case": {
     "en": "300I DUO (TP2)",
     "zh": "300I DUO(TP2)"
   },
-  "scenarios[2].steps[0].title": {
+  "scenarios[3].steps[0].title": {
     "en": "Start the server",
     "zh": "启动服务"
   },
-  "scenarios[2].steps[0].content": {
+  "scenarios[3].steps[0].content": {
     "en": "Atlas 300I DUO single-node deployment (TP=2) with the QuaRot-310 weights.\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nexport ASCEND_RT_VISIBLE_DEVICES=0,1\n\nvllm serve your_model_path \\\n    --host 127.0.0.1 \\\n    --port 8000 \\\n    --tensor-parallel-size 2 \\\n    --max-num-seqs 32 \\\n    --served_model_name qwen3 \\\n    --dtype float16 \\\n    --quantization ascend \\\n    --max-model-len 16384 \\\n    --additional-config '{\"ascend_compilation_config\": {\"fuse_norm_quant\": false,\"enable_npu_graph_ex\":false}}' \\\n    {{compilation_config}} \\\n    {{prefix_caching}}\n```\n\n> - `--tensor-parallel-size 2` maps the model across two Atlas inference devices.\n> - `--dtype float16` matches the Atlas 300I DUO inference execution path.\n> - `--max-model-len 16384` is intentionally conservative on Atlas 300I DUO.\n> - `--max-num-seqs` limits concurrent active requests to reduce KV cache and graph capture pressure.",
     "zh": "Atlas 300I DUO 单节点部署(TP=2),使用 QuaRot-310 权重。\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nexport ASCEND_RT_VISIBLE_DEVICES=0,1\n\nvllm serve your_model_path \\\n    --host 127.0.0.1 \\\n    --port 8000 \\\n    --tensor-parallel-size 2 \\\n    --max-num-seqs 32 \\\n    --served_model_name qwen3 \\\n    --dtype float16 \\\n    --quantization ascend \\\n    --max-model-len 16384 \\\n    --additional-config '{\"ascend_compilation_config\": {\"fuse_norm_quant\": false,\"enable_npu_graph_ex\":false}}' \\\n    {{compilation_config}} \\\n    {{prefix_caching}}\n```\n\n> - `--tensor-parallel-size 2` 将模型映射到两个 Atlas 推理设备。\n> - `--dtype float16` 匹配 Atlas 300I DUO 推理执行路径。\n> - `--max-model-len 16384` 在 Atlas 300I DUO 上故意保守设置。\n> - `--max-num-seqs` 限制并发请求数,以降低 KV cache 和图捕获压力。"
   },
-  "scenarios[2].steps[1].title": {
+  "scenarios[3].steps[1].title": {
     "en": "Service Verification",
     "zh": "服务验证"
   },
-  "scenarios[2].steps[1].content": {
+  "scenarios[3].steps[1].content": {
     "en": "After the service is started, verify it is running by sending a prompt. Refer to the verification section below for a usage example.",
     "zh": "服务启动后，通过发送 prompt 验证其运行状态。使用示例请参考下方的验证部分。"
   },
