@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "Qwen3-235B-A22B",
+    "zh": "Qwen3-235B-A22B"
+  },
   "meta.description": {
     "en": "The largest MoE variant of the Qwen3 series with 235B total parameters and 22B activated per token. Breakthrough advancements in reasoning, instruction-following, agent capabilities, and multilingual support.",
     "zh": "Qwen3 系列最大的 MoE 变体，总参数 235B，每 token 激活 22B。在推理、指令跟随、Agent 能力和多语言支持方面有突破性提升。"

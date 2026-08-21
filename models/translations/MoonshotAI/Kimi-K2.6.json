@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "Kimi-K2.6",
+    "zh": "Kimi-K2.6"
+  },
   "meta.description": {
     "en": "Native multimodal agentic model built through continual pretraining on ~15T mixed visual and text tokens atop Kimi-K2-Base, with instant and thinking modes plus conversational and agentic paradigms.",
     "zh": "原生多模态智能体模型，基于 Kimi-K2-Base 在约 15 万亿图文混合 token 上持续预训练，融合视觉与语言理解，支持即时/思考模式以及对话/智能体范式。"

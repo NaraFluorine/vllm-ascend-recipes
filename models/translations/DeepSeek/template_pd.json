@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "Multi-Node PD Template",
+    "zh": "多节点 PD 模板"
+  },
   "meta.description": {
     "en": "A focused two-node PD-disaggregation template for the multi-node Recipe converter.",
     "zh": "用于多节点 Recipe Converter 的双节点 PD 分离模板。"

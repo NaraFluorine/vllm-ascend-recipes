@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "GLM-4.5/4.6/4.7",
+    "zh": "GLM-4.5/4.6/4.7"
+  },
   "meta.description": {
     "en": "GLM-4.x series are Mixture-of-Experts (MoE) foundational models from Zhipu AI, specifically designed for agent applications. GLM-4.7 features the latest improvements with support for MTP speculative decoding, expert parallelism, and PD disaggregation on Ascend NPUs.",
     "zh": "GLM-4.x 系列是智谱 AI 推出的混合专家（MoE）基础模型，专为智能体应用设计。GLM-4.7 包含最新改进，支持 MTP 投机解码、专家并行和 PD 分离部署于昇腾 NPU。"
@@ -123,6 +127,14 @@
     "en": "Long Context High Concurrency (>4)",
     "zh": "长上下文高并发（>4）"
   },
+  "scenarios[0].config_params.data_parallel_size.description": {
+    "en": "Data parallel size; dp2 is recommended for long-context high concurrency, low latency, and high-throughput short sequences",
+    "zh": "数据并行大小；长上下文高并发、低延迟和高吞吐短序列推荐 dp2"
+  },
+  "scenarios[0].config_params.tensor_parallel_size.description": {
+    "en": "Tensor parallel size; tp8 is recommended for long-context high concurrency, low latency, and high-throughput short sequences",
+    "zh": "张量并行大小；长上下文高并发、低延迟和高吞吐短序列推荐 tp8"
+  },
   "scenarios[0].steps[0].title": {
     "en": "Start the server",
     "zh": "启动服务"
@@ -146,6 +158,18 @@
   "scenarios[1].case": {
     "en": "Long Context Low Concurrency (<=4)",
     "zh": "长上下文低并发（<=4）"
+  },
+  "scenarios[1].config_params.max_num_seqs.description": {
+    "en": "Use <=4 concurrent sequences for long-context low-concurrency serving to prioritize KV cache capacity",
+    "zh": "低并发长序列建议 <=4，以优先保障 KV cache 容量"
+  },
+  "scenarios[1].config_params.data_parallel_size.description": {
+    "en": "dp1 is recommended for long-context low concurrency",
+    "zh": "长上下文低并发推荐 dp1"
+  },
+  "scenarios[1].config_params.tensor_parallel_size.description": {
+    "en": "tp16 is recommended for long-context low concurrency",
+    "zh": "长上下文低并发推荐 tp16"
   },
   "scenarios[1].steps[0].title": {
     "en": "Start the server",
@@ -171,6 +195,14 @@
     "en": "Low-Latency Short Sequences",
     "zh": "低延迟短序列"
   },
+  "scenarios[2].config_params.data_parallel_size.description": {
+    "en": "dp2 is recommended for low-latency short sequences",
+    "zh": "低延迟短序列推荐 dp2"
+  },
+  "scenarios[2].config_params.tensor_parallel_size.description": {
+    "en": "tp8 is recommended for low-latency short sequences",
+    "zh": "低延迟短序列推荐 tp8"
+  },
   "scenarios[2].steps[0].title": {
     "en": "Start the server",
     "zh": "启动服务"
@@ -194,6 +226,14 @@
   "scenarios[3].case": {
     "en": "High-Throughput Short Sequences",
     "zh": "高吞吐短序列"
+  },
+  "scenarios[3].config_params.data_parallel_size.description": {
+    "en": "dp2 is recommended for high-throughput short sequences",
+    "zh": "高吞吐短序列推荐 dp2"
+  },
+  "scenarios[3].config_params.tensor_parallel_size.description": {
+    "en": "tp8 is recommended for high-throughput short sequences",
+    "zh": "高吞吐短序列推荐 tp8"
   },
   "scenarios[3].steps[0].title": {
     "en": "Start the server",
@@ -219,6 +259,10 @@
     "en": "Multi Card",
     "zh": "多卡"
   },
+  "scenarios[4].config_params.tensor_parallel_size.description": {
+    "en": "A2 single-node serving uses tp8 by default to cover all 8 NPUs",
+    "zh": "A2 单节点默认使用 tp8 覆盖 8 个 NPU"
+  },
   "scenarios[4].steps[0].title": {
     "en": "Start the server",
     "zh": "启动服务"
@@ -242,6 +286,14 @@
   "scenarios[5].case": {
     "en": "Multi Node",
     "zh": "多节点"
+  },
+  "scenarios[5].config_params.max_model_len.description": {
+    "en": "Default context length for the BF16 multi-node example; adjust it for your input/output length",
+    "zh": "BF16 多节点示例默认上下文长度；请按实际输入输出长度调整"
+  },
+  "scenarios[5].config_params.tensor_parallel_size.description": {
+    "en": "The BF16 multi-node example uses tp16 by default",
+    "zh": "BF16 多节点示例默认 tp16"
   },
   "scenarios[5].steps[0].title": {
     "en": "Start the server",
