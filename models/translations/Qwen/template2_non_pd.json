@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "Multi-Node Non-PD Template",
+    "zh": "多节点非 PD 模板"
+  },
   "meta.description": {
     "en": "A focused two-node internal-DP template for the multi-node Recipe converter.",
     "zh": "用于多节点 Recipe Converter 的双节点 internal-DP 模板。"

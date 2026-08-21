@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "DeepSeek-V4-Flash",
+    "zh": "DeepSeek-V4-Flash"
+  },
   "meta.description": {
     "en": "DeepSeek V4 MoE model with hybrid CSA+HCA attention, manifold-constrained hyper-connections, and three-tier reasoning (Non-think / Think High / Think Max).",
     "zh": "DeepSeek V4 MoE 模型，采用混合 CSA+HCA 注意力机制、流形约束超连接，支持三种推理模式（Non-think / Think High / Think Max）。"

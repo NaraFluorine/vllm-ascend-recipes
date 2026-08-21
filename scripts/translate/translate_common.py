@@ -282,8 +282,10 @@ def is_untranslatable(path_str: str, en: str) -> bool:
     # stays English; only a parenthetical qualifier is translated.
     if _IDENTIFIER_FIELD_RE.match(path_str) and not _has_gloss(text):
         return True
-    # Brand-only reference titles.
-    if path_str.startswith("references[") and path_str.endswith("].title"):
+    # Brand-only titles (reference titles + recipe meta.title).
+    if path_str == "meta.title" or (
+        path_str.startswith("references[") and path_str.endswith("].title")
+    ):
         return _is_brand_only(text)
     return False
 

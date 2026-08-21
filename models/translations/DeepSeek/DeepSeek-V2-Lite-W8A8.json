@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "DeepSeek-V2-Lite W8A8 — Multi-Node PD Separation (demo)",
+    "zh": "DeepSeek-V2-Lite W8A8 — 多节点 PD 分离(demo)"
+  },
   "meta.description": {
     "en": "DeepSeek-V2-Lite MoE (16B total / 2.4B active) served as a multi-node PD-separated deployment (1P1D) with W8A8 quantization and Mooncake KV transfer.",
     "zh": "DeepSeek-V2-Lite MoE(总参 16B / 激活 2.4B)以多节点 PD 分离拓扑(1P1D)部署,W8A8 量化 + Mooncake KV 传输。"

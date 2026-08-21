@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "GLM-5.2",
+    "zh": "GLM-5.2"
+  },
   "meta.description": {
     "en": "GLM-5.2 is a Mixture-of-Experts (MoE) model from Zhipu AI with 753B total parameters, targeting complex systems engineering and long-horizon agentic tasks. It supports MTP speculative decoding with up to 5 speculative tokens, async scheduling, and PD disaggregation on Ascend NPUs.",
     "zh": "GLM-5.2 是智谱 AI 推出的混合专家（MoE）模型，总参数量 753B，面向复杂系统工程和长周期智能体任务。支持最多 5 个投机 Token 的 MTP 投机解码、异步调度和 PD 分离部署于昇腾 NPU。"

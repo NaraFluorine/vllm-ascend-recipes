@@ -1,6 +1,7 @@
 {
   "_comment": "Translatable field allowlist (deny-by-default). Paths use `.` for map keys, `*` for any map key, `[]` for any list index. Only string leaves matching these patterns are translated; every other field (model_id, url, command, args, base_env, placeholders, brand names, ...) is copied verbatim.",
   "patterns": [
+    "meta.title",
     "meta.description",
     "meta.performance_headline",
     "model.install.*.note",
@@ -14,6 +15,7 @@
     "prerequisites[].content",
     "env_setup.pip.content",
     "env_setup.container.*.content",
+    "scenarios[].config_params.*.description",
     "scenarios[].deployment",
     "scenarios[].case",
     "scenarios[].steps[].title",

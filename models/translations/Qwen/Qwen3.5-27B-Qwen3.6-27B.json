@@ -1,4 +1,8 @@
 {
+  "meta.title": {
+    "en": "Qwen3.5-27B/Qwen3.6-27B",
+    "zh": "Qwen3.5-27B/Qwen3.6-27B"
+  },
   "meta.description": {
     "en": "Qwen3.5-27B and Qwen3.6-27B are dense hybrid Mamba-Transformer language models in the Qwen3.5/Qwen3.6 family, integrating breakthroughs in architectural efficiency, reinforcement learning scale, and global accessibility. They share the same hybrid attention design (GDN + full attention) and the same deployment pattern on Ascend NPUs, suitable for general-purpose text generation tasks such as dialogue, content creation, and code generation.",
     "zh": "Qwen3.5-27B 与 Qwen3.6-27B 是 Qwen3.5/Qwen3.6 系列的稠密混合 Mamba-Transformer 语言模型，在架构效率、强化学习规模和全球可访问性方面均有突破。两者共享相同的混合注意力设计（GDN + 全注意力）和 MTP 头设计，在昇腾 NPU 上的部署方式一致，适用于对话、内容创作、代码生成等通用文本生成任务。"
