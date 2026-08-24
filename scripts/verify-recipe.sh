@@ -80,7 +80,7 @@ if hw_status == 'unsupported':
 # Extract env_setup (pip install)
 env_setup = data.get('env_setup', {})
 pip_content = env_setup.get('pip', {}).get('content', '')
-hw_to_container = {'atlas_800_a2': 'A2', 'atlas_800_a3': 'A3'}
+hw_to_container = {'atlas_800_a2': 'A2', 'atlas_800_a3': 'A3', 'ascend_950dt': 'A5'}
 container_content = env_setup.get('container', {}).get(hw_to_container.get(hw_key, 'A2'), {}).get('content', '')
 
 # Extract global verification (curl commands shared across scenarios)
@@ -151,27 +151,37 @@ except Exception as e:
     print(json.dumps({'action': 'skip', 'reason': f'cache_paths 文件解析失败: {e}'}))
     sys.exit(0)
 CACHE_DIR_BY_MODEL = {a['model_id']: a['cache_dir'] for a in aliases}
-if model_id_for_path not in CACHE_DIR_BY_MODEL:
+if hw_key == 'ascend_950dt' and model_id_for_path == 'deepseek-ai/DeepSeek-V4-Flash':
+    a5_candidate = '/root/.cache/modelscope/hub/models/models--deepseek-ai--DeepSeek-V4-Flash'
+    CACHE_PATH = a5_candidate if os.path.isdir(a5_candidate) else None
+    if CACHE_PATH is None:
+        print(json.dumps({
+            'action': 'skip',
+            'reason': f'A5 runner 未预装原始权重 (目录={a5_candidate})',
+        }))
+        sys.exit(0)
+elif model_id_for_path not in CACHE_DIR_BY_MODEL:
     print(json.dumps({
         'action': 'skip',
         'reason': f'未提前下载权重，请联系maintainer下载权重 (model_id={model_id_for_path})',
     }))
     sys.exit(0)
-cache_dir = CACHE_DIR_BY_MODEL[model_id_for_path]
-CACHE_PATH = None
-for prefix in CACHE_PREFIXES:
-    candidate = os.path.join(CACHE_BASE, prefix, cache_dir)
-    if os.path.isdir(candidate):
-        CACHE_PATH = candidate
-        if prefix != CACHE_PREFIXES[0]:
-            print(f"DEBUG: cache resolved under non-default prefix '{prefix}/' for {model_id_for_path}", file=sys.stderr)
-        break
-if CACHE_PATH is None:
-    print(json.dumps({
-        'action': 'skip',
-        'reason': f'镜像未预装该权重 (model_id={model_id_for_path}, 目录={cache_dir}, 已尝试 {list(CACHE_PREFIXES)})',
-    }))
-    sys.exit(0)
+else:
+    cache_dir = CACHE_DIR_BY_MODEL[model_id_for_path]
+    CACHE_PATH = None
+    for prefix in CACHE_PREFIXES:
+        candidate = os.path.join(CACHE_BASE, prefix, cache_dir)
+        if os.path.isdir(candidate):
+            CACHE_PATH = candidate
+            if prefix != CACHE_PREFIXES[0]:
+                print(f"DEBUG: cache resolved under non-default prefix '{prefix}/' for {model_id_for_path}", file=sys.stderr)
+            break
+    if CACHE_PATH is None:
+        print(json.dumps({
+            'action': 'skip',
+            'reason': f'镜像未预装该权重 (model_id={model_id_for_path}, 目录={cache_dir}, 已尝试 {list(CACHE_PREFIXES)})',
+        }))
+        sys.exit(0)
 
 # Extract scenarios
 scenarios = data.get('scenarios', [])
@@ -183,9 +193,17 @@ for s in scenarios:
     # A2 runners, and Atlas 300I DUO (310p) scenarios anywhere (they need the
     # inference-device image / TP-only path, not the a2b4 runners).
     npu_name = s.get('npu', '')
-    if hw_key == 'atlas_800_a2' and ('A3' in npu_name or '300I' in npu_name):
+    if hw_key == 'atlas_800_a2' and ('A3' in npu_name or '950DT' in npu_name or '300I' in npu_name):
         import sys
         print(f"DEBUG: Skipping scenario '{npu_name}/{s.get('precision','')}' on A2 hardware", file=sys.stderr)
+        continue
+    if hw_key == 'atlas_800_a3' and ('A2' in npu_name or '950DT' in npu_name or '300I' in npu_name):
+        import sys
+        print(f"DEBUG: Skipping scenario '{npu_name}/{s.get('precision','')}' on A3 hardware", file=sys.stderr)
+        continue
+    if hw_key == 'ascend_950dt' and '950DT' not in npu_name:
+        import sys
+        print(f"DEBUG: Skipping scenario '{npu_name}/{s.get('precision','')}' on A5 hardware", file=sys.stderr)
         continue
 
     for step in s.get('steps', []):
@@ -211,9 +229,19 @@ for s in scenarios:
             verify_cmds.append(bash_content.strip())
     
     if serve_cmd:
-        # Append global verification curl commands
+        # Local CI verifies the API inside the same container. Replace the
+        # documentation placeholders with localhost and the port selected by
+        # this scenario's vllm serve command.
+        port_match = re.search(r'--port\s+(\d+)', serve_cmd)
+        server_port = port_match.group(1) if port_match else '8000'
+        verify_cmds = [
+            cmd.replace('<node0_ip>', 'localhost').replace('<port>', server_port)
+            for cmd in verify_cmds
+        ]
+
+        # Append global verification curl commands.
         if global_verify_cmd:
-            verify_cmds.append(global_verify_cmd)
+            verify_cmds.append(global_verify_cmd.replace('<port>', server_port))
         
         commands.append({
             'npu': s.get('npu', ''),
@@ -419,17 +447,23 @@ SCRIPT_HEREDOC
   bash "$VLLM_SCRIPT" &
   SERVE_PID=$!
 
+  # Recipes may use a non-default API port. Keep readiness checks and
+  # benchmark configuration aligned with the port passed to vllm serve.
+  SERVER_PORT=$(printf '%s\n' "$SERVE_CMD" | sed -nE 's/.*--port[[:space:]]+([0-9]+).*/\1/p' | tail -1)
+  SERVER_PORT=${SERVER_PORT:-8000}
+
   # Wait for /v1/models to become ready
-  log_info "  Waiting for server ready..."
+  log_info "  Waiting for server ready on port ${SERVER_PORT}..."
   READY=0
   for i in $(seq 1 300); do
-    if curl -sf http://localhost:8000/v1/models > /dev/null 2>&1; then
+    if curl -sf "http://localhost:${SERVER_PORT}/v1/models" > /dev/null 2>&1; then
       READY=1
       log_info "  Server ready after ${i}s"
       break
     fi
     if [[ $((i % 30)) -eq 0 ]]; then
       log_info "  Still waiting... (${i}s elapsed)"
+      npu-smi info || true
     fi
     sleep 2
   done
@@ -442,7 +476,7 @@ SCRIPT_HEREDOC
   fi
 
   # Verify /v1/models returns expected content
-  MODELS_RESP=$(curl -sf http://localhost:8000/v1/models)
+  MODELS_RESP=$(curl -sf "http://localhost:${SERVER_PORT}/v1/models")
   if echo "$MODELS_RESP" | grep -qi "model"; then
     log_info "  /v1/models OK"
   else
@@ -480,7 +514,7 @@ SCRIPT_HEREDOC
     AIS_CFG="/usr/local/python3.12.13/lib/python3.12/site-packages/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py"
     if [[ -f "$AIS_CFG" ]]; then
       sed -i "s|path=\".*\"|path=\"${CACHE_PATH}\"|" "$AIS_CFG"
-      sed -i 's|host_port=8080|host_port=8000|' "$AIS_CFG"
+      sed -i "s|host_port=8080|host_port=${SERVER_PORT}|" "$AIS_CFG"
       log_info "  Patched ais_bench model config (path + port)"
     fi
     BENCH_OUTPUT=$(ais_bench --models vllm_api_stream_chat --datasets synthetic_gen --mode perf --debug --num-prompts 50 2>&1 || echo "AISBENCH_FAILED")
