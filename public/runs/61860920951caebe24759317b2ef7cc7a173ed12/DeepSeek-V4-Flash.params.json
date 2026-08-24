@@ -1,0 +1,11 @@
+{
+  "recipe_path": "models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+  "model_id": "",
+  "hw_key": "ascend_950dt",
+  "head_sha": "61860920951caebe24759317b2ef7cc7a173ed12",
+  "trigger_type": "pr",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0-a5",
+  "started_at": "2026-08-24T06:21:59Z",
+  "scenarios": [],
+  "skip_reason": "A5 runner 未预装原始权重 (目录=/root/.cache/DeepSeek-V4-Flash)"
+}

@@ -1,6 +1,23 @@
 {
   "model": "DeepSeek-V4-Flash",
-  "last_pr_run": null,
+  "last_pr_run": {
+    "kind": "pr",
+    "status": "skip",
+    "conclusion": "success",
+    "head_sha": "61860920951caebe24759317b2ef7cc7a173ed12",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/61860920951caebe24759317b2ef7cc7a173ed12",
+    "workflow_run_id": 32697023712,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/32697023712",
+    "recipe_path": "models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/61860920951caebe24759317b2ef7cc7a173ed12/models/en/DeepSeek/DeepSeek-V4-Flash.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/61860920951caebe24759317b2ef7cc7a173ed12/DeepSeek-V4-Flash.params.json",
+    "started_at": "2026-08-24T06:21:59Z",
+    "finished_at": "2026-08-24T06:25:52Z",
+    "pr_number": 72,
+    "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/72",
+    "pr_title": "feat: add DeepSeek V4 Flash A5 single-node verification",
+    "pr_author": "chaosv598"
+  },
   "last_nightly_run": {
     "kind": "nightly",
     "status": "skip",
