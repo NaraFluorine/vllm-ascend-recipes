@@ -304,38 +304,42 @@
     "zh": "Qwen3.5-27B ModelScope"
   },
   "references[1].title": {
+    "en": "Additional Configuration",
+    "zh": "附加配置"
+  },
+  "references[2].title": {
     "en": "Qwen3.5-27B-w8a8-mtp (Eco-Tech)",
     "zh": "Qwen3.5-27B-w8a8-mtp（Eco-Tech）"
   },
-  "references[2].title": {
+  "references[3].title": {
     "en": "Qwen3.6-27B ModelScope",
     "zh": "Qwen3.6-27B ModelScope"
   },
-  "references[3].title": {
+  "references[4].title": {
     "en": "Qwen3.6-27B-w8a8 (Eco-Tech)",
     "zh": "Qwen3.6-27B-w8a8（Eco-Tech）"
   },
-  "references[4].title": {
+  "references[5].title": {
     "en": "vllm-ascend docs (release v0.23.0)",
     "zh": "vllm-ascend 文档（release v0.23.0）"
   },
-  "references[5].title": {
+  "references[6].title": {
     "en": "Mooncake multi-node PD disaggregation guide",
     "zh": "Mooncake 多节点 PD 分离部署指南"
   },
-  "references[6].title": {
+  "references[7].title": {
     "en": "launch_online_dp.py (vllm-ascend examples)",
     "zh": "launch_online_dp.py（vllm-ascend 示例）"
   },
-  "references[7].title": {
+  "references[8].title": {
     "en": "run_dp_template.sh (vllm-ascend examples)",
     "zh": "run_dp_template.sh（vllm-ascend 示例）"
   },
-  "references[8].title": {
+  "references[9].title": {
     "en": "load_balance_proxy_server_example.py (vllm-ascend examples)",
     "zh": "load_balance_proxy_server_example.py（vllm-ascend 示例）"
   },
-  "references[9].title": {
+  "references[10].title": {
     "en": "vLLM-Ascend Public FAQ",
     "zh": "vLLM-Ascend 公开 FAQ"
   }

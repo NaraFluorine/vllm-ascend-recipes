@@ -372,6 +372,10 @@
     "zh": "vllm-ascend 文档"
   },
   "references[3].title": {
+    "en": "Additional Configuration",
+    "zh": "附加配置"
+  },
+  "references[4].title": {
     "en": "vllm-ascend GitHub",
     "zh": "vllm-ascend GitHub"
   }

@@ -324,18 +324,22 @@
     "zh": "vllm-ascend 文档"
   },
   "references[1].title": {
+    "en": "Additional Configuration",
+    "zh": "附加配置"
+  },
+  "references[2].title": {
     "en": "ModelScope Model Download",
     "zh": "ModelScope 模型下载"
   },
-  "references[2].title": {
+  "references[3].title": {
     "en": "PD Disaggregation Guide (Mooncake)",
     "zh": "PD 分离指南 (Mooncake)"
   },
-  "references[3].title": {
+  "references[4].title": {
     "en": "Proxy Script",
     "zh": "Proxy 脚本"
   },
-  "references[4].title": {
+  "references[5].title": {
     "en": "vllm-ascend GitHub",
     "zh": "vllm-ascend GitHub"
   }

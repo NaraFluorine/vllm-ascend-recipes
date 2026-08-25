@@ -332,22 +332,26 @@
     "zh": "vllm-ascend 文档"
   },
   "references[1].title": {
+    "en": "Additional Configuration",
+    "zh": "附加配置"
+  },
+  "references[2].title": {
     "en": "ModelScope Model Download (GLM-5 BF16)",
     "zh": "ModelScope 模型下载（GLM-5 BF16）"
   },
-  "references[2].title": {
+  "references[3].title": {
     "en": "ModelScope Model Download (GLM-5 W4A8)",
     "zh": "ModelScope 模型下载（GLM-5 W4A8）"
   },
-  "references[3].title": {
+  "references[4].title": {
     "en": "ModelScope Model Download (GLM-5 W8A8)",
     "zh": "ModelScope 模型下载（GLM-5 W8A8）"
   },
-  "references[4].title": {
+  "references[5].title": {
     "en": "HuggingFace Model Download (GLM-5.1 BF16)",
     "zh": "HuggingFace 模型下载（GLM-5.1 BF16）"
   },
-  "references[5].title": {
+  "references[6].title": {
     "en": "vllm-ascend GitHub",
     "zh": "vllm-ascend GitHub"
   }
