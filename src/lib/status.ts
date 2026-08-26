@@ -8,7 +8,7 @@
  * Schema mirrors what publish-status.yml emits.
  */
 
-export type RunKind = 'pr' | 'nightly';
+export type RunKind = 'pr' | 'nightly' | 'manual';
 export type RunConclusion = 'success' | 'failure' | 'cancelled' | 'skipped';
 
 export interface RunStatus {
@@ -35,10 +35,34 @@ export interface RunStatus {
   pr_author: string | null;
 }
 
+export interface ScenarioSelector {
+  test_id?: string;
+  npu: string;
+  precision: string;
+  deployment: string;
+  case: string;
+}
+
+export interface VerificationTargetStatus {
+  test_id?: string;
+  selector: ScenarioSelector;
+  runner: string;
+  mode: string;
+  last_pr_run: RunStatus | null;
+  last_nightly_run: RunStatus | null;
+  /** Latest manually-dispatched run; not displayed as PR/nightly evidence. */
+  last_manual_run?: RunStatus | null;
+  /** All exact PR/nightly evidence retained for the selected configuration. */
+  history?: RunStatus[];
+}
+
 export interface ModelStatus {
   model: string;
   last_pr_run: RunStatus | null;
   last_nightly_run: RunStatus | null;
+  last_manual_run?: RunStatus | null;
+  /** Explicitly-approved, configuration-level verification results. */
+  targets?: Record<string, VerificationTargetStatus>;
 }
 
 export interface StatusIndex {
@@ -75,6 +99,28 @@ export function statusUrlForSlug(slug: string): string {
   return `${basePath()}/status/${slug}.json`;
 }
 
+/**
+ * Netlify deploy previews are served from `/`, while GitHub Pages uses the
+ * configured Astro base path. Try the configured path first, then the root
+ * copy emitted by the preview build.
+ */
+export function statusUrlCandidatesForSlug(slug: string): string[] {
+  return [...new Set([statusUrlForSlug(slug), `/status/${slug}.json`])];
+}
+
+/** Fetch a status file across both supported static-site deployment paths. */
+export async function fetchModelStatus(slug: string): Promise<ModelStatus | null> {
+  for (const url of statusUrlCandidatesForSlug(slug)) {
+    try {
+      const response = await fetch(url, { cache: 'no-cache' });
+      if (response.ok) return (await response.json()) as ModelStatus;
+    } catch {
+      // Try the next static deployment path.
+    }
+  }
+  return null;
+}
+
 export function statusIndexUrl(): string {
   return `${basePath()}/status/index.json`;
 }
@@ -109,4 +155,86 @@ export function pickFreshestRun(
   if (Number.isNaN(ta)) return b;
   if (Number.isNaN(tb)) return a;
   return tb >= ta ? b : a;
+}
+
+/** Return the one published target matching all four selector dimensions. */
+export function findScenarioTarget(
+  status: Pick<ModelStatus, 'targets'> | null | undefined,
+  scenario: ScenarioSelector,
+): VerificationTargetStatus | null {
+  if (!status?.targets) return null;
+  return (
+    Object.values(status.targets).find((target) => {
+      if (scenario.test_id && target.test_id) return target.test_id === scenario.test_id;
+      return (
+        target.selector.npu === scenario.npu &&
+        target.selector.precision === scenario.precision &&
+        target.selector.deployment === scenario.deployment &&
+        target.selector.case === scenario.case
+      );
+    }) ?? null
+  );
+}
+
+/** Production verification is true only when the latest main nightly passed. */
+export function isNightlyVerified(target: VerificationTargetStatus | null | undefined): boolean {
+  return target?.last_nightly_run?.status === 'pass';
+}
+
+export type ModelVerificationSummary = 'all-pass' | 'partial-pass' | 'no-pass' | 'untracked';
+
+export type VerificationDotColor = 'green' | 'yellow' | 'red' | 'gray';
+
+export interface VerificationDotPresentation {
+  color: VerificationDotColor;
+  classes: readonly string[];
+  label: string;
+}
+
+const verificationDotPresentations: Record<ModelVerificationSummary, VerificationDotPresentation> =
+  {
+    'all-pass': {
+      color: 'green',
+      classes: ['bg-emerald-400', 'ring-emerald-300/50'],
+      label: 'All configurations passed nightly verification',
+    },
+    'partial-pass': {
+      color: 'yellow',
+      classes: ['bg-amber-400', 'ring-amber-300/50'],
+      label: 'Some configurations passed nightly verification',
+    },
+    'no-pass': {
+      color: 'red',
+      classes: ['bg-rose-400', 'ring-rose-300/50'],
+      label: 'No configuration has passed nightly verification',
+    },
+    untracked: {
+      color: 'gray',
+      classes: ['bg-ink-600', 'ring-ink-500/50'],
+      label: 'No configuration verification record',
+    },
+  };
+
+/** Keep the detail-page history compact while preserving newest-first order. */
+export function limitVerificationHistory(history: RunStatus[], limit = 20): RunStatus[] {
+  return history.slice(0, limit);
+}
+
+/** Return the shared presentation for a model-level verification summary. */
+export function verificationDotPresentation(
+  summary: ModelVerificationSummary,
+): VerificationDotPresentation {
+  return verificationDotPresentations[summary];
+}
+
+/** Summarize the latest nightly result for every allowlisted configuration. */
+export function summarizeModelVerification(
+  status: Pick<ModelStatus, 'targets'> | null | undefined,
+): ModelVerificationSummary {
+  const targets = Object.values(status?.targets ?? {});
+  if (targets.length === 0) return 'untracked';
+  const passed = targets.filter((target) => isNightlyVerified(target)).length;
+  if (passed === targets.length) return 'all-pass';
+  if (passed > 0) return 'partial-pass';
+  return 'no-pass';
 }

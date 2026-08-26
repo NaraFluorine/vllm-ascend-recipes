@@ -1,7 +1,6 @@
 ---
 import type { ModelListItem } from '../lib/types';
 import { formatContextLength, formatParameters } from '../lib/models';
-import { statusUrlForSlug } from '../lib/status';
 
 interface Props {
   model: ModelListItem & {
@@ -11,33 +10,41 @@ interface Props {
 }
 
 const { model } = Astro.props;
-const slug = model._model_slug ?? '';
 ---
 
 <a
   href={model.url}
   class="group relative block p-5 rounded-lg border border-ink-800/60 hover:border-accent-500/30 bg-ink-900/40 hover:bg-ink-900/60 transition-all duration-200 overflow-hidden"
-  data-status-url={slug ? statusUrlForSlug(slug) : undefined}
 >
   <div
     class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-accent-500/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
   >
   </div>
 
-  <div class="flex items-start justify-between mb-2">
+  <div class="flex items-start gap-2 mb-2">
     <h3
-      class="font-display font-semibold text-sm text-ink-100 group-hover:text-accent-300 transition-colors tracking-tight"
+      class="min-w-0 font-display font-semibold text-sm text-ink-100 group-hover:text-accent-300 transition-colors tracking-tight"
     >
       {model.title}
     </h3>
-    <span
-      class="text-[10px] font-mono uppercase tracking-wider text-ink-500 px-1.5 py-0.5 rounded border border-ink-700/50 flex items-center gap-1"
-    >
-      {model.architecture}
+    <div class="ml-auto flex shrink-0 items-center gap-2">
       <span
-        class="status-dot hidden w-1.5 h-1.5 rounded-full bg-zinc-500 ring-1 ring-zinc-700"
-        aria-hidden="true"></span>
-    </span>
+        class="text-[10px] font-mono uppercase tracking-wider text-ink-500 px-1.5 py-0.5 rounded border border-ink-700/50 flex items-center gap-1"
+      >
+        {model.architecture}
+      </span>
+      {
+        model._model_slug && (
+          <span
+            data-model-verification
+            data-model-slug={model._model_slug}
+            class="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-ink-600 ring-1 ring-ink-500/50"
+            title="No configuration verification"
+            aria-label="No configuration verification"
+          />
+        )
+      }
+    </div>
   </div>
 
   <p class="text-xs text-ink-500 line-clamp-2 mb-3 leading-relaxed">
@@ -73,47 +80,34 @@ const slug = model._model_slug ?? '';
 </a>
 
 <script>
-  // Tiny status dot: hydrates a green/red/grey pip on each card by
-  // fetching the per-slug status JSON. Failure is silent — the card
-  // renders fine without it.
-  import type { ModelStatus } from '../lib/status';
-  import { pickFreshestRun } from '../lib/status';
+  import {
+    fetchModelStatus,
+    summarizeModelVerification,
+    verificationDotPresentation,
+  } from '../lib/status';
 
-  async function paintDot(card: HTMLElement) {
-    const url = card.dataset.statusUrl;
-    if (!url) return;
-    try {
-      const r = await fetch(url, { cache: 'no-cache' });
-      if (!r.ok) return;
-      const data = (await r.json()) as ModelStatus;
-      // Use the freshest of (last_pr_run, last_nightly_run) instead of
-      // preferring PR — see pickFreshestRun comment in lib/status.ts. This
-      // keeps the dot accurate when last_pr_run is a stale mock fixture
-      // (survived publish_skeleton.py's looks_real() heuristic) while a
-      // newer nightly has actually run.
-      const run = pickFreshestRun(data.last_pr_run, data.last_nightly_run);
-      const dot = card.querySelector<HTMLElement>('.status-dot');
-      if (!dot || !run) return;
-      dot.classList.remove('hidden', 'bg-zinc-500');
-      dot.title = `Last ${run.kind === 'pr' ? `PR #${run.pr_number ?? ''}` : 'nightly'} — ${run.status} ${run.started_at?.slice(0, 10) ?? ''}`;
-      const color =
-        run.status === 'pass'
-          ? 'bg-emerald-400'
-          : run.status === 'fail'
-            ? 'bg-rose-400'
-            : 'bg-zinc-400';
-      dot.classList.add(color);
-    } catch {
-      /* silent */
-    }
-  }
+  const allClasses = [
+    'bg-emerald-400',
+    'ring-emerald-300/50',
+    'bg-amber-400',
+    'ring-amber-300/50',
+    'bg-rose-400',
+    'ring-rose-300/50',
+    'bg-ink-600',
+    'ring-ink-500/50',
+  ];
 
-  function init() {
-    document.querySelectorAll<HTMLElement>('[data-status-url]').forEach((el) => paintDot(el));
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  document.querySelectorAll<HTMLElement>('[data-model-verification]').forEach((dot) => {
+    const slug = dot.dataset.modelSlug;
+    if (!slug) return;
+    fetchModelStatus(slug)
+      .then((data) => {
+        const presentation = verificationDotPresentation(summarizeModelVerification(data));
+        dot.classList.remove(...allClasses);
+        dot.classList.add(...presentation.classes);
+        dot.title = presentation.label;
+        dot.setAttribute('aria-label', presentation.label);
+      })
+      .catch(() => undefined);
+  });
 </script>

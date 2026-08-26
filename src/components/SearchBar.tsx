@@ -1,8 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLang } from '../lib/useLang';
-import { statusUrlForSlug, type ModelStatus } from '../lib/status';
-import { pickFreshestRun } from '../lib/status';
 import { modelCardKey } from '../lib/model-card-key';
+import {
+  fetchModelStatus,
+  summarizeModelVerification,
+  verificationDotPresentation,
+  type ModelVerificationSummary,
+} from '../lib/status';
 
 interface ModelItem {
   hf_id: string;
@@ -34,6 +38,28 @@ export default function SearchBar({ modelsEn, modelsZh }: SearchBarProps) {
   const [filterNpu, setFilterNpu] = useState('');
   const [filterArch, setFilterArch] = useState('');
   const [filterModality, setFilterModality] = useState('');
+  const [verificationSummaries, setVerificationSummaries] = useState<
+    Record<string, ModelVerificationSummary>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const slugs = [
+      ...new Set(
+        models.map((model) => model._model_slug).filter((slug): slug is string => Boolean(slug)),
+      ),
+    ];
+    Promise.all(
+      slugs.map(
+        async (slug) => [slug, summarizeModelVerification(await fetchModelStatus(slug))] as const,
+      ),
+    ).then((entries) => {
+      if (!cancelled) setVerificationSummaries(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [models]);
 
   const allNpus = useMemo(() => {
     const set = new Set<string>();
@@ -149,25 +175,35 @@ export default function SearchBar({ modelsEn, modelsZh }: SearchBarProps) {
             key={modelCardKey(m)}
             href={m.url}
             className="group relative block p-5 rounded-lg border border-ink-800/60 hover:border-accent-500/30 bg-ink-900/40 hover:bg-ink-900/60 transition-all duration-200 overflow-hidden"
-            data-status-url={m._model_slug ? statusUrlForSlug(m._model_slug) : undefined}
           >
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-accent-500/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <div className="flex items-start justify-between mb-2">
-              <h3 className="font-display font-semibold text-sm text-ink-100 group-hover:text-accent-300 transition-colors tracking-tight">
+            <div className="flex items-start gap-2 mb-2">
+              <h3 className="min-w-0 font-display font-semibold text-sm text-ink-100 group-hover:text-accent-300 transition-colors tracking-tight">
                 {m.title}
               </h3>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-ink-500 px-1.5 py-0.5 rounded border border-ink-700/50">
-                {m.architecture}
-                <span
-                  className="status-dot hidden w-1.5 h-1.5 rounded-full bg-zinc-500 ring-1 ring-zinc-700 ml-1.5 inline-block align-middle"
-                  aria-hidden="true"
-                />
-                {m._is_template && (
-                  <span className="ml-1.5 rounded bg-accent-500/10 text-accent-400 border border-accent-500/20 px-1">
-                    Template
-                  </span>
-                )}
-              </span>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-ink-500 px-1.5 py-0.5 rounded border border-ink-700/50">
+                  {m.architecture}
+                  {m._is_template && (
+                    <span className="ml-1.5 rounded bg-accent-500/10 text-accent-400 border border-accent-500/20 px-1">
+                      Template
+                    </span>
+                  )}
+                </span>
+                {m._model_slug &&
+                  (() => {
+                    const presentation = verificationDotPresentation(
+                      verificationSummaries[m._model_slug] ?? 'untracked',
+                    );
+                    return (
+                      <span
+                        className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ring-1 ${presentation.classes.join(' ')}`}
+                        title={presentation.label}
+                        aria-label={presentation.label}
+                      />
+                    );
+                  })()}
+              </div>
             </div>
             <p className="text-xs text-ink-500 line-clamp-2 mb-3 leading-relaxed">
               {m.description}
@@ -196,40 +232,4 @@ export default function SearchBar({ modelsEn, modelsZh }: SearchBarProps) {
       )}
     </div>
   );
-}
-
-// Tiny status dot: hydrates a green/red/grey pip per card from status JSON.
-// Failure is silent — cards render fine without it.
-function initStatusDots(): void {
-  document.querySelectorAll<HTMLElement>('[data-status-url]').forEach((card) => {
-    const url = card.dataset.statusUrl;
-    if (!url) return;
-    fetch(url, { cache: 'no-cache' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: ModelStatus | null) => {
-        const run = data ? pickFreshestRun(data.last_pr_run, data.last_nightly_run) : null;
-        const dot = card.querySelector<HTMLElement>('.status-dot');
-        if (!dot || !run) return;
-        dot.classList.remove('hidden', 'bg-zinc-500');
-        dot.title = `Last ${run.kind === 'pr' ? `PR #${run.pr_number ?? ''}` : 'nightly'} — ${run.status} ${run.started_at?.slice(0, 10) ?? ''}`;
-        const color =
-          run.status === 'pass'
-            ? 'bg-emerald-400'
-            : run.status === 'fail'
-              ? 'bg-rose-400'
-              : 'bg-zinc-400';
-        dot.classList.add(color);
-      })
-      .catch(() => {
-        /* silent */
-      });
-  });
-}
-
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initStatusDots);
-  } else {
-    initStatusDots();
-  }
 }
