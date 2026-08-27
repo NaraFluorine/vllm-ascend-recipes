@@ -14,6 +14,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".github" / "_scripts" / "verification_targets.py"
 FILL_SCRIPT = ROOT / ".github" / "_scripts" / "fill_missing_target_results.py"
+INDEX_SCRIPT = ROOT / ".github" / "_scripts" / "build_status_index.py"
 
 
 def load_module():
@@ -177,6 +178,8 @@ class VerificationTargetTests(unittest.TestCase):
         self.assertIn('actions/runs/${RUN_ID}/jobs?per_page=100', publisher)
         self.assertIn('--target-id "$target_id"', publisher)
         self.assertIn("seed_target_statuses.py", publisher)
+        self.assertIn("build_status_index.py", publisher)
+        self.assertNotIn("--argjson items", publisher)
 
     def test_configuration_status_unit_tests_are_gated_in_ci(self) -> None:
         lint_workflow = (ROOT / ".github" / "workflows" / "lint.yml").read_text()
