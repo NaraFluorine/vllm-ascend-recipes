@@ -20,5 +20,57 @@
   },
   "last_nightly_run": null,
   "last_manual_run": null,
-  "targets": {}
+  "targets": {
+    "qwen3-vl-30b-a3b-a5-w8a8-image-only-online-serving": {
+      "test_id": null,
+      "selector": {
+        "npu": "Ascend 950DT",
+        "precision": "W8A8",
+        "deployment": "Single-Node",
+        "case": "Image-Only Online Serving (A5)"
+      },
+      "runner": "linux-aarch64-a5-8",
+      "mode": "single-node",
+      "last_pr_run": {
+        "kind": "pr",
+        "status": "pass",
+        "conclusion": "success",
+        "head_sha": "581db12513a61a05257416a9ccbb8b699ce2a2c4",
+        "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/581db12513a61a05257416a9ccbb8b699ce2a2c4",
+        "workflow_run_id": 33243667020,
+        "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/33243667020",
+        "recipe_path": "models/en/Qwen/Qwen3-VL-30B-A3B-Instruct.yaml",
+        "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/581db12513a61a05257416a9ccbb8b699ce2a2c4/models/en/Qwen/Qwen3-VL-30B-A3B-Instruct.yaml",
+        "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/581db12513a61a05257416a9ccbb8b699ce2a2c4/Qwen3-VL-30B-A3B-Instruct.params.json",
+        "started_at": "2026-08-29T08:39:18Z",
+        "finished_at": "2026-08-29T08:46:12Z",
+        "pr_number": null,
+        "pr_url": null,
+        "pr_title": null,
+        "pr_author": null
+      },
+      "last_nightly_run": null,
+      "last_manual_run": null,
+      "history": [
+        {
+          "kind": "pr",
+          "status": "pass",
+          "conclusion": "success",
+          "head_sha": "581db12513a61a05257416a9ccbb8b699ce2a2c4",
+          "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/581db12513a61a05257416a9ccbb8b699ce2a2c4",
+          "workflow_run_id": 33243667020,
+          "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/33243667020",
+          "recipe_path": "models/en/Qwen/Qwen3-VL-30B-A3B-Instruct.yaml",
+          "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/581db12513a61a05257416a9ccbb8b699ce2a2c4/models/en/Qwen/Qwen3-VL-30B-A3B-Instruct.yaml",
+          "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/581db12513a61a05257416a9ccbb8b699ce2a2c4/Qwen3-VL-30B-A3B-Instruct.params.json",
+          "started_at": "2026-08-29T08:39:18Z",
+          "finished_at": "2026-08-29T08:46:12Z",
+          "pr_number": null,
+          "pr_url": null,
+          "pr_title": null,
+          "pr_author": null
+        }
+      ]
+    }
+  }
 }
