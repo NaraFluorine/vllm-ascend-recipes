@@ -3,22 +3,23 @@
   "last_pr_run": null,
   "last_nightly_run": {
     "kind": "nightly",
-    "status": "skip",
-    "conclusion": "success",
-    "head_sha": "4aacf376dc4b7496aa875b9a4532efbfd990b131",
-    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/4aacf376dc4b7496aa875b9a4532efbfd990b131",
-    "workflow_run_id": 32657969454,
-    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/32657969454",
+    "status": "pass",
+    "conclusion": "failure",
+    "head_sha": "2c803dd41a8e5f66348adf3c0592c34657b03f75",
+    "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/2c803dd41a8e5f66348adf3c0592c34657b03f75",
+    "workflow_run_id": 33226455672,
+    "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/33226455672",
     "recipe_path": "models/en/THUDM/GLM-5.yaml",
-    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/4aacf376dc4b7496aa875b9a4532efbfd990b131/models/en/THUDM/GLM-5.yaml",
-    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/4aacf376dc4b7496aa875b9a4532efbfd990b131/GLM-5.params.json",
-    "started_at": "2026-08-23T18:53:53Z",
-    "finished_at": "2026-08-23T18:54:43Z",
-    "pr_number": null,
-    "pr_url": null,
-    "pr_title": null,
-    "pr_author": null
+    "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/2c803dd41a8e5f66348adf3c0592c34657b03f75/models/en/THUDM/GLM-5.yaml",
+    "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/2c803dd41a8e5f66348adf3c0592c34657b03f75/GLM-5.params.json",
+    "started_at": "2026-08-29T01:33:12Z",
+    "finished_at": "2026-08-29T02:19:09Z",
+    "pr_number": 83,
+    "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/83",
+    "pr_title": "docs(skill): add upstream recipe contribution guidance",
+    "pr_author": "chaosv598"
   },
+  "last_manual_run": null,
   "targets": {
     "glm5-a5-w4a4-single-node-multi-card": {
       "test_id": null,
@@ -31,9 +32,45 @@
       "runner": "linux-aarch64-a5-8",
       "mode": "single-node",
       "last_pr_run": null,
-      "last_nightly_run": null,
+      "last_nightly_run": {
+        "kind": "nightly",
+        "status": "pass",
+        "conclusion": "failure",
+        "head_sha": "2c803dd41a8e5f66348adf3c0592c34657b03f75",
+        "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/2c803dd41a8e5f66348adf3c0592c34657b03f75",
+        "workflow_run_id": 33226455672,
+        "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/33226455672",
+        "recipe_path": "models/en/THUDM/GLM-5.yaml",
+        "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/2c803dd41a8e5f66348adf3c0592c34657b03f75/models/en/THUDM/GLM-5.yaml",
+        "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/2c803dd41a8e5f66348adf3c0592c34657b03f75/GLM-5.params.json",
+        "started_at": "2026-08-29T01:33:12Z",
+        "finished_at": "2026-08-29T02:19:09Z",
+        "pr_number": 83,
+        "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/83",
+        "pr_title": "docs(skill): add upstream recipe contribution guidance",
+        "pr_author": "chaosv598"
+      },
       "last_manual_run": null,
-      "history": []
+      "history": [
+        {
+          "kind": "nightly",
+          "status": "pass",
+          "conclusion": "failure",
+          "head_sha": "2c803dd41a8e5f66348adf3c0592c34657b03f75",
+          "head_sha_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/commit/2c803dd41a8e5f66348adf3c0592c34657b03f75",
+          "workflow_run_id": 33226455672,
+          "workflow_run_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/actions/runs/33226455672",
+          "recipe_path": "models/en/THUDM/GLM-5.yaml",
+          "recipe_yaml_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/blob/2c803dd41a8e5f66348adf3c0592c34657b03f75/models/en/THUDM/GLM-5.yaml",
+          "params_url": "https://vllm-ascend.github.io/vllm-ascend-recipes/runs/2c803dd41a8e5f66348adf3c0592c34657b03f75/GLM-5.params.json",
+          "started_at": "2026-08-29T01:33:12Z",
+          "finished_at": "2026-08-29T02:19:09Z",
+          "pr_number": 83,
+          "pr_url": "https://github.com/vllm-ascend/vllm-ascend-recipes/pull/83",
+          "pr_title": "docs(skill): add upstream recipe contribution guidance",
+          "pr_author": "chaosv598"
+        }
+      ]
     }
   }
 }
