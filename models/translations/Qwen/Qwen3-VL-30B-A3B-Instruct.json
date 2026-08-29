@@ -1,0 +1,118 @@
+{
+  "meta.title": {
+    "en": "Qwen3-VL-30B-A3B-Instruct",
+    "zh": "Qwen3-VL-30B-A3B-Instruct"
+  },
+  "meta.description": {
+    "en": "Qwen3-VL-30B-A3B-Instruct is a sparse Mixture-of-Experts vision-language model with about 30B total parameters and about 3B active parameters per token. It supports image understanding, video understanding, multimodal dialogue, and long-context serving.",
+    "zh": "Qwen3-VL-30B-A3B-Instruct 是 Qwen3-VL 系列的稀疏混合专家视觉语言模型，总参数量约 30B，每个 token 激活约 3B 参数。它支持图像理解、视频理解、多模态对话和长上下文服务。"
+  },
+  "meta.performance_headline": {
+    "en": "Single-node W8A8 deployment on Ascend 950DT (96 GB × 8)",
+    "zh": "在 Ascend 950DT（96 GB × 8）上的单节点 W8A8 部署"
+  },
+  "model.install.docker.note": {
+    "en": "Use the public v0.23.0 A5 image; the complete device and driver mounts are shown below.",
+    "zh": "使用公开的 v0.23.0 A5 镜像；完整的设备和驱动挂载见下文。"
+  },
+  "features.expert_parallel.description": {
+    "en": "Distributes MoE experts across the eight NPU ranks.",
+    "zh": "在八个 NPU rank 间分布 MoE 专家。"
+  },
+  "features.flashcomm1.description": {
+    "en": "Ascend communication optimization used by the tutorial baseline.",
+    "zh": "教程基线使用的 Ascend 通信优化。"
+  },
+  "features.prefix_caching.description": {
+    "en": "Disabled in the image-only tutorial baseline.",
+    "zh": "图像专用教程基线默认关闭。"
+  },
+  "features.compilation_config.description": {
+    "en": "Full decode ACLGraph replay used by the tutorial baseline.",
+    "zh": "教程基线使用完整 decode ACLGraph 回放。"
+  },
+  "variants.default.description": {
+    "en": "W8A8 quantized checkpoint for one Ascend 950DT node.",
+    "zh": "适用于单台 Ascend 950DT 节点的 W8A8 量化检查点。"
+  },
+  "config_params.gpu_memory_utilization.description": {
+    "en": "Fraction of NPU memory vLLM uses for KV-cache capacity.",
+    "zh": "vLLM 用于计算 KV 缓存容量的 NPU 内存比例。"
+  },
+  "overview": {
+    "en": "Qwen3-VL-30B-A3B-Instruct is a sparse MoE model in the Qwen3-VL family. Its vision-language design supports image understanding, video understanding, and multimodal dialogue while activating about 3B parameters per token.",
+    "zh": "Qwen3-VL-30B-A3B-Instruct 是 Qwen3-VL 系列的稀疏 MoE 模型。其视觉语言架构支持图像理解、视频理解和多模态对话，每个 token 激活约 3B 参数。"
+  },
+  "weight_download[0].weight_version": {
+    "en": "W8A8 MXFP8",
+    "zh": "W8A8 MXFP8"
+  },
+  "prerequisites[0].title": {
+    "en": "Model weight",
+    "zh": "模型权重"
+  },
+  "prerequisites[0].content": {
+    "en": "The W8A8 checkpoint requires one Ascend 950DT node with eight 96 GB NPUs. Download the public ModelScope checkpoint before starting the service.",
+    "zh": "W8A8 检查点需要一台配备八张 96 GB NPU 的 Ascend 950DT 节点。启动服务前请下载公开的 ModelScope 检查点。"
+  },
+  "env_setup.container.A5.content": {
+    "en": "Pull the public v0.23.0 A5 image and start it with the device and driver mounts from the official tutorial.\n\n```bash\nexport IMAGE=quay.io/ascend/vllm-ascend:v0.23.0-a5\nexport NAME=vllm-ascend\n\ndocker run --rm \\\n  --name $NAME \\\n  --net=host \\\n  --shm-size=1g \\\n  --device /dev/davinci0 \\\n  --device /dev/davinci1 \\\n  --device /dev/davinci2 \\\n  --device /dev/davinci3 \\\n  --device /dev/davinci4 \\\n  --device /dev/davinci5 \\\n  --device /dev/davinci6 \\\n  --device /dev/davinci7 \\\n  --device /dev/davinci_manager \\\n  --device /dev/hisi_hdc \\\n  --device /dev/ummu \\\n  --device /dev/uburma \\\n  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \\\n  -v /etc/ascend_install.info:/etc/ascend_install.info \\\n  -v /etc/hccl_rootinfo.json:/etc/hccl_rootinfo.json \\\n  -v /etc/hixlep/:/etc/hixlep/ \\\n  -v /root/.cache:/root/.cache \\\n  -v /usr/local/sbin:/usr/local/sbin \\\n  -v /usr/local/dcmi:/usr/local/dcmi \\\n  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \\\n  -v /usr/local/sbin/npu-smi:/usr/local/sbin/npu-smi \\\n  -v /usr/lib64:/usr/lib64 \\\n  -itd $IMAGE bash\n```",
+    "zh": "拉取公开的 v0.23.0 A5 镜像，并按官方教程使用设备和驱动挂载启动容器。\n\n```bash\nexport IMAGE=quay.io/ascend/vllm-ascend:v0.23.0-a5\nexport NAME=vllm-ascend\n\ndocker run --rm \\\n  --name $NAME \\\n  --net=host \\\n  --shm-size=1g \\\n  --device /dev/davinci0 \\\n  --device /dev/davinci1 \\\n  --device /dev/davinci2 \\\n  --device /dev/davinci3 \\\n  --device /dev/davinci4 \\\n  --device /dev/davinci5 \\\n  --device /dev/davinci6 \\\n  --device /dev/davinci7 \\\n  --device /dev/davinci_manager \\\n  --device /dev/hisi_hdc \\\n  --device /dev/ummu \\\n  --device /dev/uburma \\\n  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \\\n  -v /etc/ascend_install.info:/etc/ascend_install.info \\\n  -v /etc/hccl_rootinfo.json:/etc/hccl_rootinfo.json \\\n  -v /etc/hixlep/:/etc/hixlep/ \\\n  -v /root/.cache:/root/.cache \\\n  -v /usr/local/sbin:/usr/local/sbin \\\n  -v /usr/local/dcmi:/usr/local/dcmi \\\n  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \\\n  -v /usr/local/sbin/npu-smi:/usr/local/sbin/npu-smi \\\n  -v /usr/lib64:/usr/lib64 \\\n  -itd $IMAGE bash\n```"
+  },
+  "scenarios[0].deployment": {
+    "en": "Single-Node",
+    "zh": "单节点"
+  },
+  "scenarios[0].case": {
+    "en": "Image-Only Online Serving (A5)",
+    "zh": "图像专用在线服务（A5）"
+  },
+  "scenarios[0].steps[0].title": {
+    "en": "Start the server",
+    "zh": "启动服务"
+  },
+  "scenarios[0].steps[0].content": {
+    "en": "This A5 single-node scenario runs the quantized checkpoint on eight Ascend 950DT NPUs and accepts image inputs only.\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport HCCL_OP_EXPANSION_MODE=\"AIV\"\nexport HCCL_BUFFSIZE=400\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=100\nexport TASK_QUEUE_ENABLE=1\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=1\n\nvllm serve Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-mxfp8 \\\n  --host 0.0.0.0 \\\n  --port 8000 \\\n  --distributed-executor-backend mp \\\n  --data-parallel-size 1 \\\n  --tensor-parallel-size 8 \\\n  --enable-expert-parallel \\\n  --seed 1024 \\\n  --quantization ascend \\\n  --served-model-name qwen3-vl-30b \\\n  --max-num-seqs 32 \\\n  --max-model-len 32768 \\\n  --max-num-batched-tokens 8192 \\\n  --trust-remote-code \\\n  --no-enable-prefix-caching \\\n  --mm-processor-cache-gb 0 \\\n  --limit-mm-per-prompt.image 1 \\\n  --limit-mm-per-prompt.video 0 \\\n  --gpu-memory-utilization {{gpu_memory_utilization}} \\\n  --compilation-config '{\"cudagraph_mode\":\"FULL_DECODE_ONLY\"}'\n```",
+    "zh": "此 A5 单节点场景在八张 Ascend 950DT NPU 上运行量化检查点，仅接受图像输入。\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nexport PYTORCH_NPU_ALLOC_CONF=expandable_segments:True\nexport HCCL_OP_EXPANSION_MODE=\"AIV\"\nexport HCCL_BUFFSIZE=400\nexport OMP_PROC_BIND=false\nexport OMP_NUM_THREADS=100\nexport TASK_QUEUE_ENABLE=1\nexport VLLM_ASCEND_ENABLE_FLASHCOMM1=1\n\nvllm serve Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-mxfp8 \\\n  --host 0.0.0.0 \\\n  --port 8000 \\\n  --distributed-executor-backend mp \\\n  --data-parallel-size 1 \\\n  --tensor-parallel-size 8 \\\n  --enable-expert-parallel \\\n  --seed 1024 \\\n  --quantization ascend \\\n  --served-model-name qwen3-vl-30b \\\n  --max-num-seqs 32 \\\n  --max-model-len 32768 \\\n  --max-num-batched-tokens 8192 \\\n  --trust-remote-code \\\n  --no-enable-prefix-caching \\\n  --mm-processor-cache-gb 0 \\\n  --limit-mm-per-prompt.image 1 \\\n  --limit-mm-per-prompt.video 0 \\\n  --gpu-memory-utilization {{gpu_memory_utilization}} \\\n  --compilation-config '{\"cudagraph_mode\":\"FULL_DECODE_ONLY\"}'\n```"
+  },
+  "scenarios[0].steps[1].title": {
+    "en": "Verify image understanding",
+    "zh": "验证图像理解"
+  },
+  "scenarios[0].steps[1].content": {
+    "en": "```bash\ncurl http://<server_ip>:<port>/v1/chat/completions \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"model\": \"qwen3-vl-30b\",\n    \"messages\": [\n      {\"role\": \"system\", \"content\": \"You are a helpful assistant.\"},\n      {\"role\": \"user\", \"content\": [\n        {\"type\": \"image_url\", \"image_url\": {\"url\": \"https://modelscope.oss-cn-beijing.aliyuncs.com/resource/qwen.png\"}},\n        {\"type\": \"text\", \"text\": \"What is the text in the illustration?\"}\n      ]}\n    ],\n    \"max_completion_tokens\": 100,\n    \"temperature\": 0\n  }'\n```",
+    "zh": "```bash\ncurl http://<server_ip>:<port>/v1/chat/completions \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"model\": \"qwen3-vl-30b\",\n    \"messages\": [\n      {\"role\": \"system\", \"content\": \"You are a helpful assistant.\"},\n      {\"role\": \"user\", \"content\": [\n        {\"type\": \"image_url\", \"image_url\": {\"url\": \"https://modelscope.oss-cn-beijing.aliyuncs.com/resource/qwen.png\"}},\n        {\"type\": \"text\", \"text\": \"What is the text in the illustration?\"}\n      ]}\n    ],\n    \"max_completion_tokens\": 100,\n    \"temperature\": 0\n  }'\n```"
+  },
+  "verification": {
+    "en": "The image request above should return HTTP 200 and a JSON response with a `choices` field. The tutorial gives `TONGYI Qwen` as an example of similar generated text.",
+    "zh": "上述图像请求应返回 HTTP 200 和包含 `choices` 字段的 JSON 响应。教程以类似 `TONGYI Qwen` 的生成文本为例。"
+  },
+  "performance.accuracy": {
+    "en": "The official tutorial reports an AISBench result of 0.58 for `mmmu_val` using `acc,none` in generation mode. See [Using AISBench](https://docs.vllm.ai/projects/ascend/en/latest/developer_guide/evaluation/using_ais_bench.html) for the evaluation workflow.",
+    "zh": "官方教程报告 AISBench 在 `mmmu_val` 上的结果为 0.58，指标为 `acc,none`，模式为 generation。评估流程请参见[使用 AISBench](https://docs.vllm.ai/projects/ascend/zh-cn/latest/developer_guide/evaluation/using_ais_bench.html)。"
+  },
+  "performance.benchmark": {
+    "en": "For serving-pipeline validation, run [vLLM benchmark](https://docs.vllm.ai/en/latest/benchmarking/) with the documented command:\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nvllm bench serve \\\n  --model Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-mxfp8 \\\n  --served-model-name qwen3-vl-30b \\\n  --dataset-name random \\\n  --random-input 200 \\\n  --num-prompts 200 \\\n  --request-rate 1 \\\n  --save-result \\\n  --result-dir ./\n```",
+    "zh": "对服务流水线进行验证时，使用教程中的 [vLLM benchmark](https://docs.vllm.ai/en/latest/benchmarking/) 命令：\n\n```bash\nexport VLLM_USE_MODELSCOPE=True\nvllm bench serve \\\n  --model Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-mxfp8 \\\n  --served-model-name qwen3-vl-30b \\\n  --dataset-name random \\\n  --random-input 200 \\\n  --num-prompts 200 \\\n  --request-rate 1 \\\n  --save-result \\\n  --result-dir ./\n```"
+  },
+  "tuning": {
+    "en": "Start with image-only serving. Reduce `--max-model-len`, `--max-num-seqs`, `--max-num-batched-tokens`, or `--gpu-memory-utilization` if startup runs out of memory. Enable video only when needed and tune multimodal prompt limits for the workload.",
+    "zh": "请从图像专用服务开始。如果启动时内存不足，请降低 `--max-model-len`、`--max-num-seqs`、`--max-num-batched-tokens` 或 `--gpu-memory-utilization`。仅在需要时启用视频，并根据实际工作负载调整多模态请求限制。"
+  },
+  "faq": {
+    "en": "For startup OOM, begin with image-only inputs and video disabled. Prefix caching benefits repeated prefixes; compare it against the baseline for workloads with unique images or random prompts.",
+    "zh": "如遇启动 OOM，请从禁用视频的图像专用配置开始。前缀缓存更适合重复前缀；对于图像各不相同或随机 prompt 的工作负载，应与基线配置进行对比。"
+  },
+  "references[0].title": {
+    "en": "Official vLLM-Ascend tutorial (v0.23.0)",
+    "zh": "官方 vLLM-Ascend 教程（v0.23.0）"
+  },
+  "references[1].title": {
+    "en": "ModelScope checkpoint",
+    "zh": "ModelScope 检查点"
+  },
+  "references[2].title": {
+    "en": "vLLM-Ascend Docker installation",
+    "zh": "vLLM-Ascend Docker 安装"
+  }
+}
