@@ -5,7 +5,7 @@
   "head_sha": "2b1a57986467e67f2a016da4833c4d1ca60aea2b",
   "trigger_type": "nightly",
   "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0-a5",
-  "started_at": "2026-08-30T21:27:08Z",
+  "started_at": "2026-08-31T08:18:03Z",
   "scenarios": [
     {
       "index": 0,
