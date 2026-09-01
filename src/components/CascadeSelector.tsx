@@ -1235,8 +1235,17 @@ export default function CascadeSelector({
     : null;
 
   // ---- Verification row: the selected configuration's exact CI evidence ----
-  const verificationTarget = currentScenario
-    ? findScenarioTarget(modelStatus, currentScenario)
+  // Verification targets always use English selector values (deployment, case),
+  // so when the UI is in Chinese mode we must look up the corresponding English
+  // scenario to match against the published status JSON.
+  const effectiveScenario = (() => {
+    if (!currentScenario) return null;
+    if (lang === 'en') return currentScenario;
+    const idx = scenarios.indexOf(currentScenario);
+    return idx >= 0 && idx < scenariosEn.length ? scenariosEn[idx] : currentScenario;
+  })();
+  const verificationTarget = effectiveScenario
+    ? findScenarioTarget(modelStatus, effectiveScenario)
     : null;
   const verificationHistory = verificationTarget?.history?.length
     ? verificationTarget.history
