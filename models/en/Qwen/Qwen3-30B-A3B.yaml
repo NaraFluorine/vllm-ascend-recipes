@@ -947,7 +947,6 @@ performance:
     - Input/Output length: 2048/2048 or 3500/1500
 
     **Long Context Configuration:**
-
     ```shell
     export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
     export HCCL_OP_EXPANSION_MODE="AIV"
