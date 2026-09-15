@@ -1,0 +1,10 @@
+{
+  "recipe_path": "models/en/Qwen/template2_non_pd.yaml",
+  "model_id": "Qwen/Qwen3-30B-A3B",
+  "hw_key": "atlas_800_a2",
+  "head_sha": "8b6e60a03f34225f5fb92e9e249e3618f6c8d9b7",
+  "trigger_type": "nightly",
+  "image": "swr.cn-southwest-2.myhuaweicloud.com/base_image/ascend-ci/vllm-ascend:v0.23.0rc1",
+  "started_at": "2026-09-15T21:35:15Z",
+  "scenarios": []
+}
